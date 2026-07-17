@@ -315,6 +315,17 @@
          「もう一度聞く」用として残す）。挙動はいずれもボタン操作
          （SETカードクリック・4択回答・「次へ」など）の延長で描画
          されるため、ブラウザの自動再生ポリシー上も問題なく再生される。
+   v2.17 v2.16の自動再生を、宣言的な<audio autoplay>属性頼みから、
+         手動🔊ボタンと同じplayAudio()をレンダリング直後に明示的に
+         呼び出す方式（autoplayWordAudio/autoplayExampleAudio）に変更。
+         ブラウザ間の自動再生ポリシーの解釈差に左右されにくく、また
+         .play()の戻り値(Promise)がブロックされた場合も静かに失敗する
+         （手動ボタンで再生し直せる）。263語×4画面(トレーニング／
+         確認テスト／最終確認テスト／復習)を総当たりでヘッドレス検証し、
+         全て発音・例文音声のAudio()呼び出しが発生することを確認済み。
+   v2.18 例文の音声は自動再生しないように変更（単語の発音のみ自動再生を
+         維持）。autoplayExampleAudio()の呼び出しを4箇所とも削除。
+         🔊ボタンでの手動再生は引き続き可能。263語で確認。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2606,6 +2617,7 @@ function renderMasterTraining(variant){
     b.onclick = ()=>answerTraining(variant, opt, item, b);
     box.appendChild(b);
   });
+  autoplayWordAudio(item);
 
   st.trainingTimerInterval = setInterval(()=>{
     st.trainingTimeLeft--;
@@ -2622,20 +2634,39 @@ function renderMasterTraining(variant){
    w<id>.m4a（単語の発音）／e<id>.m4a（例文の読み上げ）として保存済み） --- */
 function playAudio(event, path){
   if(event) event.stopPropagation();
-  try{ new Audio(path).play(); }catch(e){ /* 再生できない環境では無視 */ }
+  try{
+    const p = new Audio(path).play();
+    // .play()はPromiseを返す。自動再生ポリシーで拒否された場合はここに来るが、
+    // 手動の🔊ボタンで再生し直せるので握りつぶして問題ない。
+    if(p && p.catch) p.catch(()=>{});
+  }catch(e){ /* 再生できない環境では無視 */ }
+}
+function wordAudioSrc(item){
+  const extra = wordExtras[item.key];
+  return (extra && extra.audio) ? `word_audio/w${extra.audio}.m4a` : null;
+}
+function exampleAudioSrc(item){
+  const extra = wordExtras[item.key];
+  return (extra && extra.audio) ? `word_audio/e${extra.audio}.m4a` : null;
 }
 function wordAudioBtnHtml(item){
-  const extra = wordExtras[item.key];
-  if(!extra || !extra.audio) return '';
-  const src = `word_audio/w${extra.audio}.m4a`;
-  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="発音をもう一度聞く">🔊</button><audio src="${src}" autoplay style="display:none;"></audio>`;
+  const src = wordAudioSrc(item);
+  if(!src) return '';
+  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="発音をもう一度聞く">🔊</button>`;
 }
 function exampleAudioBtnHtml(item){
-  const extra = wordExtras[item.key];
-  if(!extra || !extra.audio) return '';
-  const src = `word_audio/e${extra.audio}.m4a`;
-  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="例文をもう一度聞く">🔊</button><audio src="${src}" autoplay style="display:none;"></audio>`;
+  const src = exampleAudioSrc(item);
+  if(!src) return '';
+  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="例文をもう一度聞く">🔊</button>`;
 }
+// 問題の単語が表示された直後に発音を自動再生する（宣言的な<audio autoplay>ではなく
+// 手動ボタンと同じplayAudio()を明示的に呼ぶことで、ブラウザ間の自動再生ポリシーの
+// 差異に左右されにくくしている）。
+function autoplayWordAudio(item){
+  const src = wordAudioSrc(item);
+  if(src) playAudio(null, src);
+}
+// 例文の音声は自動再生しない（🔊ボタンでの手動再生のみ）。
 
 /* --- 覚えるコツ／選択肢の和訳／回答のコツ／例文＋和訳（wordExtrasの表示） --- */
 let __enToWordCache = null;
@@ -2760,6 +2791,7 @@ function renderMasterUnitTest(variant){
     b.onclick = ()=>answerUnitTest(variant, opt, item, b);
     box.appendChild(b);
   });
+  autoplayWordAudio(item);
 }
 function answerUnitTest(variant, chosen, item, btnEl){
   const cfg = TOSHIN_VARIANTS[variant];
@@ -2840,6 +2872,7 @@ function renderMasterFinalTest(variant){
     b.onclick = ()=>answerFinalTest(variant, opt, item, b);
     box.appendChild(b);
   });
+  autoplayWordAudio(item);
 }
 function answerFinalTest(variant, chosen, item, btnEl){
   const cfg = TOSHIN_VARIANTS[variant];
@@ -2908,6 +2941,7 @@ function renderMasterReview(variant){
     b.onclick = ()=>answerReview(variant, opt, item, b);
     box.appendChild(b);
   });
+  autoplayWordAudio(item);
 }
 function answerReview(variant, chosen, item, btnEl){
   const cfg = TOSHIN_VARIANTS[variant];
