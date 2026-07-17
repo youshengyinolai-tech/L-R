@@ -310,6 +310,11 @@
          ファイル、約8MB）、単語表示の隣と例文の隣に🔊ボタンを追加して
          再生できるようにした。埋め込みではなく相対パス参照のため
          HTML本体のサイズは変わらない。
+   v2.16 単語・例文の音声を、問題表示時／解答解説表示時に自動再生する
+         ようにした（<audio autoplay>を非表示で挿入。🔊ボタンは
+         「もう一度聞く」用として残す）。挙動はいずれもボタン操作
+         （SETカードクリック・4択回答・「次へ」など）の延長で描画
+         されるため、ブラウザの自動再生ポリシー上も問題なく再生される。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2622,12 +2627,14 @@ function playAudio(event, path){
 function wordAudioBtnHtml(item){
   const extra = wordExtras[item.key];
   if(!extra || !extra.audio) return '';
-  return `<button type="button" class="audiobtn" onclick="playAudio(event, 'word_audio/w${extra.audio}.m4a')" title="発音を聞く">🔊</button>`;
+  const src = `word_audio/w${extra.audio}.m4a`;
+  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="発音をもう一度聞く">🔊</button><audio src="${src}" autoplay style="display:none;"></audio>`;
 }
 function exampleAudioBtnHtml(item){
   const extra = wordExtras[item.key];
   if(!extra || !extra.audio) return '';
-  return `<button type="button" class="audiobtn" onclick="playAudio(event, 'word_audio/e${extra.audio}.m4a')" title="例文の音声を聞く">🔊</button>`;
+  const src = `word_audio/e${extra.audio}.m4a`;
+  return `<button type="button" class="audiobtn" onclick="playAudio(event, '${src}')" title="例文をもう一度聞く">🔊</button><audio src="${src}" autoplay style="display:none;"></audio>`;
 }
 
 /* --- 覚えるコツ／選択肢の和訳／回答のコツ／例文＋和訳（wordExtrasの表示） --- */
