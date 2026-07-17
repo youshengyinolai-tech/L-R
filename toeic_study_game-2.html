@@ -113,22 +113,30 @@
   .wlmeaning{ color:#555; text-align:right; }
   .wljp{ color:#555; }
   .wlen{ color:#889; font-style:italic; font-size:.82em; }
-  @media (max-width:600px){ .wordlisttable{ grid-template-columns: 1fr; } }
+  /* ---- スマホ版・パソコン版UI ----
+     基本は window幅で自動判定するが、右上の切り替えボタンで
+     data-uimode="mobile"/"pc" を強制指定できる（localStorageに保存）。
+     どちらのモードで表示中かに応じて見た目を出し分けるため、
+     @media ではなく <html data-uimode="…"> 属性セレクタで切り替える。 */
+  html[data-uimode="mobile"] .wordlisttable{ grid-template-columns: 1fr; }
 
-  /* ---- PC・タブレットなど広い画面向けの最適化 ---- */
-  @media (min-width: 700px){
-    main{ max-width: 860px; padding:28px 24px 70px; }
-    .card{ padding:28px 34px; }
-    .choices{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-    .choices.part1choices{ display:flex; }
-    nav button{ padding:10px 20px; font-size:.92rem; }
-    header h1{ font-size:1.75rem; }
-    .word{ font-size:2rem; }
-    .qtext{ font-size:1.15rem; }
+  html[data-uimode="pc"] main{ max-width: 860px; padding:28px 24px 70px; }
+  html[data-uimode="pc"] .card{ padding:28px 34px; }
+  html[data-uimode="pc"] .choices{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  html[data-uimode="pc"] .choices.part1choices{ display:flex; }
+  html[data-uimode="pc"] nav button{ padding:10px 20px; font-size:.92rem; }
+  html[data-uimode="pc"] header h1{ font-size:1.75rem; }
+  html[data-uimode="pc"] .word{ font-size:2rem; }
+  html[data-uimode="pc"] .qtext{ font-size:1.15rem; }
+  html[data-uimode="pc"].wide main{ max-width: 980px; }
+
+  .uimodebtn{
+    position:fixed; top:10px; right:10px; z-index:20;
+    border:1px solid var(--moss); background:var(--card); color:var(--moss-dark);
+    padding:7px 12px; border-radius:999px; cursor:pointer; font-size:.75rem; font-weight:700;
+    box-shadow:0 2px 0 var(--line);
   }
-  @media (min-width: 1100px){
-    main{ max-width: 980px; }
-  }
+  .uimodebtn:hover{ background:var(--moss); color:#fff; }
   .nextbtn{
     margin-top:16px; background:var(--clay); color:#fff; border:none; padding:11px 22px;
     border-radius:999px; font-weight:700; cursor:pointer; font-size:.9rem;
@@ -168,6 +176,8 @@
 </style>
 </head>
 <body>
+
+<button type="button" id="uiModeToggle" class="uimodebtn" onclick="cycleUiMode()"></button>
 
 <header>
   <h1>TOEIC 学習道場</h1>
@@ -276,6 +286,11 @@
          リポジトリに追加。HTML側は空のembeddedAudioに戻し、既存の
          「同フォルダの相対パス」フォールバックで自動再生されるように
          した。ファイルサイズは約26MB→約1.1MBに縮小。
+   v2.13 スマホ版・パソコン版のUIを明示的に分離。既定はwindow幅
+         700px基準の自動判定（<html data-uimode="mobile|pc">で
+         レイアウトを出し分け）。画面右上に切り替えボタンを追加し、
+         自動→スマホ版固定→パソコン版固定→自動…と手動でも切り替え
+         られるようにした（選択はlocalStorageに保存）。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -1590,6 +1605,47 @@ document.getElementById('modeNav').addEventListener('click', e=>{
   currentMode = btn.dataset.mode;
   render();
 });
+
+/* ============================================================
+   スマホ版・パソコン版UIの切り替え
+   ------------------------------------------------------------
+   既定は「自動」= window幅で判定（700px未満はスマホ版・以上は
+   パソコン版）。右上のボタンで 自動→スマホ固定→パソコン固定→自動
+   と手動切り替えでき、選択はlocalStorageに保存されて次回も復元
+   される。<html data-uimode="mobile|pc"> 属性に応じてCSS側で
+   レイアウトを出し分ける。
+   ============================================================ */
+const UI_MODE_KEY = 'toeicDojoUiMode_v1'; // 'auto' | 'mobile' | 'pc'
+const UI_MODE_BREAKPOINT = 700; // このpx未満は自動判定でスマホ版になる
+function getUiModePref(){
+  try{ return localStorage.getItem(UI_MODE_KEY) || 'auto'; }catch(e){ return 'auto'; }
+}
+function setUiModePref(pref){
+  try{ localStorage.setItem(UI_MODE_KEY, pref); }catch(e){ /* 保存できない環境では無視 */ }
+}
+function computeEffectiveUiMode(pref){
+  if(pref==='mobile' || pref==='pc') return pref;
+  return window.innerWidth >= UI_MODE_BREAKPOINT ? 'pc' : 'mobile';
+}
+function applyUiMode(){
+  const pref = getUiModePref();
+  const effective = computeEffectiveUiMode(pref);
+  document.documentElement.setAttribute('data-uimode', effective);
+  document.documentElement.classList.toggle('wide', window.innerWidth >= 1100);
+  const btn = document.getElementById('uiModeToggle');
+  if(btn){
+    const labels = { auto: `🔁 自動（${effective==='pc'?'💻':'📱'}）`, mobile: '📱 スマホ版固定', pc: '💻 パソコン版固定' };
+    btn.textContent = labels[pref];
+    btn.title = 'タップでスマホ版⇔パソコン版の表示を切り替えます（自動判定に戻すこともできます）';
+  }
+}
+function cycleUiMode(){
+  const pref = getUiModePref();
+  const next = pref==='auto' ? 'mobile' : pref==='mobile' ? 'pc' : 'auto';
+  setUiModePref(next);
+  applyUiMode();
+}
+window.addEventListener('resize', applyUiMode);
 
 function shuffle(arr){
   const a = arr.slice();
@@ -3044,6 +3100,7 @@ function render(){
   else renderFill();
 }
 setupAudioPicker();
+applyUiMode();
 render();
 </script>
 </body>
