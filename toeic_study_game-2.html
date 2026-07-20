@@ -178,168 +178,6 @@
     background:var(--moss); color:#fff; border:none; padding:10px 20px; border-radius:999px;
     font-weight:700; cursor:pointer; margin-top:10px;
   }
-
-  /* v3 visual refresh */
-  :root{
-    --ink:#e8eefb;
-    --paper:#070b14;
-    --line:#263149;
-    --moss:#637dff;
-    --moss-dark:#aebdff;
-    --clay:#ff5d8f;
-    --gold:#f8c15c;
-    --ok:#43d19e;
-    --bad:#ff6b7a;
-    --card:#111827;
-    --panel:#0d1422;
-    --muted:#8f9bb3;
-    --glow:rgba(99,125,255,.26);
-  }
-  body{
-    color:var(--ink);
-    background:
-      radial-gradient(900px 500px at 5% -10%, rgba(99,125,255,.18), transparent 60%),
-      radial-gradient(700px 500px at 100% 15%, rgba(255,93,143,.10), transparent 60%),
-      var(--paper);
-    font-family:Inter,"Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-  }
-  body::before{
-    content:""; position:fixed; inset:0; pointer-events:none; opacity:.22;
-    background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-    background-size:32px 32px; mask-image:linear-gradient(to bottom,#000,transparent 70%);
-  }
-  header{
-    position:relative; padding:38px 20px 26px; border:0; overflow:hidden;
-  }
-  header::after{
-    content:"TOEIC"; position:absolute; z-index:-1; right:-10px; top:-32px;
-    font-size:clamp(7rem,20vw,14rem); font-weight:900; letter-spacing:-.08em;
-    color:rgba(255,255,255,.025); line-height:1;
-  }
-  .brand{display:flex; align-items:center; justify-content:center; gap:12px;}
-  .brandmark{
-    display:grid; place-items:center; width:42px; height:42px; border-radius:13px;
-    color:#fff; font-size:1.1rem; font-weight:900;
-    background:linear-gradient(135deg,var(--moss),#8a62ff);
-    box-shadow:0 10px 28px var(--glow);
-  }
-  header h1{
-    color:#fff; font-size:1.7rem; letter-spacing:-.03em; font-weight:850;
-  }
-  header p{color:var(--muted); margin:10px 0 0; font-size:.82rem; letter-spacing:.08em;}
-  .audiopicker{
-    max-width:560px; margin:22px auto 0; padding:0; overflow:hidden;
-    background:rgba(17,24,39,.72); border:1px solid var(--line); border-radius:14px;
-    text-align:left; backdrop-filter:blur(12px); box-shadow:none;
-  }
-  .audiopicker summary{
-    display:flex; align-items:center; gap:10px; padding:12px 15px; cursor:pointer;
-    color:#cbd5e8; font-size:.78rem; font-weight:750; list-style:none;
-  }
-  .audiopicker summary::-webkit-details-marker{display:none}
-  .audiopicker summary::before{content:"♫"; color:var(--moss-dark); font-size:1rem;}
-  .audiopicker summary::after{content:"＋"; margin-left:auto; color:var(--muted); font-size:1rem;}
-  .audiopicker[open] summary::after{content:"−";}
-  .audioinner{padding:0 15px 14px; border-top:1px solid var(--line);}
-  .audiopickerlabel{color:#cad4ea; margin:12px 0 8px;}
-  .audiopicker input[type=file]{width:100%; color:var(--muted); font-size:.72rem;}
-  .audiopicker input[type=file]::file-selector-button{
-    margin-right:10px; border:1px solid #3b4b6c; border-radius:8px; padding:7px 10px;
-    color:#e8eefb; background:#1b263b; cursor:pointer;
-  }
-  #audioPickerStatus{color:var(--muted)!important; line-height:1.5; margin-top:8px;}
-  nav{
-    top:0; padding:9px 12px; gap:4px; border:1px solid var(--line);
-    border-left:0; border-right:0; background:rgba(7,11,20,.82);
-    backdrop-filter:blur(18px); box-shadow:0 12px 30px rgba(0,0,0,.18);
-  }
-  nav button{
-    border:0; color:var(--muted); background:transparent; border-radius:10px;
-    padding:10px 15px; font-size:.78rem; font-weight:750;
-  }
-  nav button:hover{background:#182136; color:#fff;}
-  nav button.active{
-    background:#1c2740; color:#fff; box-shadow:inset 0 0 0 1px #354361;
-  }
-  nav button.active::before{content:""; display:inline-block; width:6px; height:6px;
-    margin-right:8px; border-radius:50%; background:#7f96ff; box-shadow:0 0 10px #7f96ff;}
-  main{max-width:760px; padding:30px 16px 80px;}
-  .card{
-    position:relative; padding:24px; margin-bottom:16px; color:var(--ink);
-    background:linear-gradient(145deg,rgba(20,29,48,.98),rgba(13,20,34,.98));
-    border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 50px rgba(0,0,0,.22);
-  }
-  .card::before{
-    content:""; position:absolute; left:18px; right:18px; top:0; height:1px;
-    background:linear-gradient(90deg,transparent,rgba(153,170,255,.45),transparent);
-  }
-  .scorebar,.progress{color:var(--muted);}
-  .progress{margin:11px 0 18px; font-size:.72rem; font-weight:750; letter-spacing:.06em;}
-  .badge{background:#26375f; color:#bdc9ff; padding:4px 9px; font-size:.65rem;}
-  .badge.verify{background:#493a20; color:#ffd881;}
-  .qtext{font-size:1.08rem; line-height:1.75; margin:12px 0 22px;}
-  .word{color:#fff; letter-spacing:-.02em;}
-  .choices{gap:10px;}
-  .choice{
-    position:relative; padding:14px 16px; color:#dfe7f6; background:#131d30;
-    border:1px solid #2b3852; border-radius:12px; transition:.16s ease;
-  }
-  .choice:hover:not([disabled]){
-    color:#fff; background:#192640; border-color:#7189ff;
-    transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,.24);
-  }
-  .choice.correct{background:rgba(67,209,158,.13); border-color:var(--ok); color:#aaf3d7;}
-  .choice.wrong{background:rgba(255,107,122,.12); border-color:var(--bad); color:#ffc0c7;}
-  .choice[disabled]{opacity:.82;}
-  .nextbtn,.restart{
-    border-radius:11px; padding:11px 18px; color:#fff;
-    background:linear-gradient(135deg,var(--moss),#755cff);
-    box-shadow:0 8px 20px var(--glow); transition:.16s; border:0;
-  }
-  .nextbtn:hover,.restart:hover{opacity:1; transform:translateY(-1px); filter:brightness(1.08);}
-  .nextbtn::after{content:" →";}
-  .explain{
-    color:#cbd5e8; background:#141d2d; border:1px solid #303b50;
-    border-left:3px solid var(--gold); padding:11px 13px; border-radius:9px;
-  }
-  .note{color:#aeb9ce; background:#121a29; border:1px solid #2b3850; border-radius:12px;}
-  select,input.typein,#wordListSearch{
-    color:var(--ink)!important; background:#111b2d!important; border-color:#34425d!important;
-    outline:none;
-  }
-  select:focus,input:focus{border-color:var(--moss)!important; box-shadow:0 0 0 3px var(--glow);}
-  .audiobox{background:#101a2b; color:var(--ink);}
-  .audiolabel{color:var(--moss-dark);}
-  .wordbank{border-color:#334057;}
-  .chip{background:#26375f; color:#d9e0ff;}
-  .chip.selected{background:var(--clay);}
-  .blank{color:var(--moss-dark); background:#17233a; border-color:#7189ff;}
-  .scriptline.correctline{background:rgba(67,209,158,.12);}
-  .scripttable .sjp,.wlmeaning,.wljp{color:#9da9be;}
-  .wordlistrow{background:#111b2b; border-color:#27344b;}
-  .wordlistsrc,.wlword{color:#becaff;}
-  .wlen,.sourcetag{color:#78869e;}
-  .uimodebtn{
-    top:12px; right:12px; color:#aeb9ce; background:rgba(15,23,38,.82);
-    border:1px solid #303e59; border-radius:9px; box-shadow:none; backdrop-filter:blur(10px);
-  }
-  .uimodebtn:hover{background:#1c2943; color:#fff;}
-  .feedback.ok{color:#66dfb5}.feedback.bad{color:#ff8995}
-  .done h2{color:#fff;}
-  html[data-uimode="pc"] main{max-width:920px;}
-  html[data-uimode="pc"] .card{padding:30px 34px;}
-  @media(max-width:600px){
-    header{padding:52px 16px 20px;}
-    header h1{font-size:1.4rem;}
-    header p{font-size:.7rem;}
-    nav{justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;}
-    nav::-webkit-scrollbar{display:none}
-    nav button{white-space:nowrap; padding:9px 12px;}
-    main{padding:20px 12px 60px;}
-    .card{padding:19px 16px; border-radius:15px;}
-    .scorebar{align-items:flex-start; gap:8px;}
-  }
 </style>
 </head>
 <body>
@@ -347,24 +185,21 @@
 <button type="button" id="uiModeToggle" class="uimodebtn" onclick="cycleUiMode()"></button>
 
 <header>
-  <div class="brand"><div class="brandmark">T</div><h1>TOEIC STUDY</h1></div>
-  <p>TRAIN SMARTER · SCORE HIGHER</p>
-  <details class="audiopicker">
-    <summary>外部音声ファイルを読み込む</summary>
-    <div class="audioinner">
-      <label class="audiopickerlabel" for="audioPickerInput">DL_000.mp3 形式のファイルを複数選択</label>
-      <input type="file" id="audioPickerInput" multiple accept="audio/mp3,audio/mpeg,.mp3">
-      <div id="audioPickerStatus" style="font-size:.75rem;color:#778;">音声ファイル（DL_000.mp3 / 00_CD1_00.mp3 形式）はこのHTMLと同じフォルダに置くと自動再生されます。手元にない音声は、ここから選んで読み込んでください。</div>
-    </div>
-  </details>
+  <h1>TOEIC 学習道場</h1>
+  <p>単語道場 ・ TOEIC道場 ・ 穴埋め道場 ・ 反意語道場</p>
+  <div class="audiopicker">
+    <label class="audiopickerlabel" for="audioPickerInput">🎧 音声を読み込む（DL_000.mp3 形式のファイルを複数選択）</label>
+    <input type="file" id="audioPickerInput" multiple accept="audio/mp3,audio/mpeg,.mp3">
+    <div id="audioPickerStatus" style="font-size:.75rem;color:#778;">音声ファイル（DL_000.mp3 / 00_CD1_00.mp3 形式）はこのHTMLと同じフォルダに置くと自動再生されます。手元にない音声は、ここから選んで読み込んでください。</div>
+  </div>
 </header>
 
 <nav id="modeNav">
-  <button data-mode="word" class="active">単語トレーニング</button>
+  <button data-mode="word" class="active">単語道場</button>
   <button data-mode="wordlist">単語帳</button>
-  <button data-mode="toeic">TOEIC問題</button>
-  <button data-mode="fill">穴埋め</button>
-  <button data-mode="antonym">反意語</button>
+  <button data-mode="toeic">TOEIC道場</button>
+  <button data-mode="fill">穴埋め道場</button>
+  <button data-mode="antonym">反意語道場</button>
 </nav>
 
 <main id="app"></main>
