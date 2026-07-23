@@ -2186,12 +2186,10 @@ function setWordScope(scope){
   if(wordScope===scope) return;
   wordScope = scope;
   try{ localStorage.setItem(WORD_SCOPE_KEY, scope); }catch(e){ /* 保存できない環境では無視 */ }
-  // スコープが変わると出題プールが変わるため、各モードのキュー・キャッシュを作り直す
+  // スコープが変わると出題プールが変わるため、対象モード（カード式／4択）のキューを作り直す
+  // （高速基礎マスターは常に独立したプール・SET構成のため、この切り替えの影響を受けない）
   meaningQueue = [];
   Object.keys(wordQuizState).forEach(m=>{ wordQuizState[m] = createWordQuizState(); });
-  toshinLevelsCache = null;
-  toshinFlatCache = null;
-  toshinWordLevelMapCache = null;
   renderWord();
 }
 
@@ -2280,13 +2278,15 @@ let wordSubMode = 'meaning'; // 'meaning' | 'choose' | 'en2en' | 'en2ja' | 'mast
 function renderWord(){
   const lsTotal = getAllWordItems().filter(w=>w.tier===4).length;
   const allTotal = getAllWordItems().length;
+  const scopeTogglesApply = ['meaning','choose','en2en','en2ja'].includes(wordSubMode);
   app.innerHTML = `${noteHtml}
   <div class="card" style="padding:14px 18px;">
+    ${scopeTogglesApply ? `
     <div style="font-size:.78rem; color:#667; margin-bottom:6px;">出題範囲：${wordScope==='ls'?`🎯 L&S.pdf小テスト範囲の${lsTotal}語だけ`:`📖 全${allTotal}語`}を対象に出題中</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <button class="restart" style="background:${wordScope==='all'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('all')">📖 全ての単語（${allTotal}語）</button>
       <button class="restart" style="background:${wordScope==='ls'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('ls')">🎯 L&S小テストの単語だけ（${lsTotal}語）</button>
-    </div>
+    </div>` : ''}
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="restart" style="background:${wordSubMode==='meaning'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('meaning')">🗂 日本語の意味（カード式）</button>
       <button class="restart" style="background:${wordSubMode==='choose'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('choose')">🔤 英語を選ぶ（4択）</button>
@@ -2294,20 +2294,23 @@ function renderWord(){
       <button class="restart" style="background:${wordSubMode==='en2ja'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('en2ja')">🇬🇧→🇯🇵 英語→日本語（4択）</button>
       <button class="restart" style="background:${wordSubMode==='master'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('master')">🎓 高速基礎マスター（日本語）</button>
       <button class="restart" style="background:${wordSubMode==='masterEn'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('masterEn')">🎓 高速基礎マスター（英英）</button>
+      <button class="restart" style="background:${wordSubMode==='masterLs'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('masterLs')">🎯 高速基礎マスター（L&S小テスト範囲）</button>
     </div>
   </div>
   <div id="wordSubApp"></div>`;
   if(wordSubMode==='meaning') renderWordMeaningCard();
   else if(wordSubMode==='choose' || wordSubMode==='en2en' || wordSubMode==='en2ja') renderWordQuiz(wordSubMode);
   else if(wordSubMode==='master') renderToshinDispatch('ja');
-  else renderToshinDispatch('en');
+  else if(wordSubMode==='masterEn') renderToshinDispatch('en');
+  else renderToshinDispatch('ls');
 }
 function switchWordSubMode(mode){
   wordSubMode = mode;
   if(mode==='meaning'){ if(meaningQueue.length===0) buildMeaningQueue(); }
   else if(mode==='choose' || mode==='en2en' || mode==='en2ja'){ if(wordQuizState[mode].queue.length===0) buildWordQuizQueue(mode); }
   else if(mode==='master'){ toshinState.ja.view = 'list'; }
-  else{ toshinState.en.view = 'list'; }
+  else if(mode==='masterEn'){ toshinState.en.view = 'list'; }
+  else{ toshinState.ls.view = 'list'; }
   renderWord();
 }
 
@@ -2517,41 +2520,68 @@ const TOSHIN_UNIT_TEST_THRESHOLD = 0.8; // 確認テスト合格ライン
 const TOSHIN_FINAL_TEST_SIZE = 60; // 最終確認テストの出題数上限
 const TOSHIN_TIME_LIMIT = 20; // トレーニングの1問あたりの制限時間(秒)
 
-let toshinLevelsCache = null;
-function getToshinLevels(){
-  if(toshinLevelsCache) return toshinLevelsCache;
-  const all = getScopedWordItems().slice().sort((a,b)=>a.tier-b.tier);
-  const perLevel = Math.ceil(all.length / TOSHIN_LEVELS);
+// 'ja'/'en' は263+α語の全体プール（tier順）、'ls' はL&S.pdf小テスト範囲(120語)専用の
+// 独立したプール・SET構成を持つ（週ごとに1SET＝10語、3週ごとに1Lv.）。
+function getToshinPool(variant){
+  return variant==='ls' ? getAllWordItems().filter(w=>w.tier===4) : getAllWordItems();
+}
+const LS_TOSHIN_WEEKS_PER_LEVEL = 3; // 全12回の小テストを3週ずつ4Lv.に分割
+function buildLsToshinLevels(){
   let levels = [];
-  for(let L=0; L<TOSHIN_LEVELS; L++){
-    const levelWords = all.slice(L*perLevel, (L+1)*perLevel);
-    if(levelWords.length===0) continue;
-    let sets = [];
-    for(let i=0;i<levelWords.length;i+=TOSHIN_SET_SIZE){
-      sets.push({ setNum: sets.length+1, words: levelWords.slice(i, i+TOSHIN_SET_SIZE) });
-    }
+  for(let L=0; L*LS_TOSHIN_WEEKS_PER_LEVEL < lsQuizWeeks.length; L++){
+    const weeksSlice = lsQuizWeeks.slice(L*LS_TOSHIN_WEEKS_PER_LEVEL, (L+1)*LS_TOSHIN_WEEKS_PER_LEVEL);
+    if(weeksSlice.length===0) continue;
+    const sets = weeksSlice.map((w, i)=>({
+      setNum: i+1,
+      label: w.date,
+      words: getAllWordItems().filter(x=>x.source===`L&S.pdf｜${w.date} 小テスト`)
+    }));
     levels.push({ level:L+1, sets });
   }
-  toshinLevelsCache = levels;
+  return levels;
+}
+let toshinLevelsCacheByVariant = {};
+function getToshinLevels(variant){
+  if(toshinLevelsCacheByVariant[variant]) return toshinLevelsCacheByVariant[variant];
+  let levels;
+  if(variant==='ls'){
+    levels = buildLsToshinLevels();
+  } else {
+    const all = getToshinPool(variant).slice().sort((a,b)=>a.tier-b.tier);
+    const perLevel = Math.ceil(all.length / TOSHIN_LEVELS);
+    levels = [];
+    for(let L=0; L<TOSHIN_LEVELS; L++){
+      const levelWords = all.slice(L*perLevel, (L+1)*perLevel);
+      if(levelWords.length===0) continue;
+      let sets = [];
+      for(let i=0;i<levelWords.length;i+=TOSHIN_SET_SIZE){
+        sets.push({ setNum: sets.length+1, words: levelWords.slice(i, i+TOSHIN_SET_SIZE) });
+      }
+      levels.push({ level:L+1, sets });
+    }
+  }
+  toshinLevelsCacheByVariant[variant] = levels;
   return levels;
 }
 function getSetId(level, setNum){ return `L${level}-S${setNum}`; }
-let toshinFlatCache = null;
-function getToshinFlatSets(){
-  if(toshinFlatCache) return toshinFlatCache;
+function setDisplayName(set){ return set.label ? set.label : `${set.level}-${set.setNum}`; }
+let toshinFlatCacheByVariant = {};
+function getToshinFlatSets(variant){
+  if(toshinFlatCacheByVariant[variant]) return toshinFlatCacheByVariant[variant];
   let flat = [];
-  getToshinLevels().forEach(lv=>{
-    lv.sets.forEach(s=>flat.push({level:lv.level, setNum:s.setNum, words:s.words, id:getSetId(lv.level,s.setNum)}));
+  getToshinLevels(variant).forEach(lv=>{
+    lv.sets.forEach(s=>flat.push({level:lv.level, setNum:s.setNum, label:s.label, words:s.words, id:getSetId(lv.level,s.setNum)}));
   });
-  toshinFlatCache = flat;
+  toshinFlatCacheByVariant[variant] = flat;
   return flat;
 }
-let toshinWordLevelMapCache = null;
-function getToshinWordLevelMap(){
-  if(toshinWordLevelMapCache) return toshinWordLevelMapCache;
-  toshinWordLevelMapCache = {};
-  getToshinFlatSets().forEach(s=>{ s.words.forEach(w=>{ toshinWordLevelMapCache[w.key]=s.level; }); });
-  return toshinWordLevelMapCache;
+let toshinWordLevelMapCacheByVariant = {};
+function getToshinWordLevelMap(variant){
+  if(toshinWordLevelMapCacheByVariant[variant]) return toshinWordLevelMapCacheByVariant[variant];
+  const map = {};
+  getToshinFlatSets(variant).forEach(s=>{ s.words.forEach(w=>{ map[w.key]=s.level; }); });
+  toshinWordLevelMapCacheByVariant[variant] = map;
+  return map;
 }
 
 // --- 永続化：単語ステータス・連続正解数・SETステータス ---
@@ -2593,6 +2623,20 @@ const TOSHIN_VARIANTS = {
       consec: 'toeicDojoToshinConsecEn_v1',
       setStatus: 'toeicDojoToshinSetStatusEn_v1'
     }
+  },
+  ls: {
+    field: 'en', // L&S.pdf小テストと同じ「英語の定義を選ぶ」形式で出題
+    idSuffix: 'Ls',
+    titleSuffix: '（L&S小テスト範囲）',
+    wrongLabel: '正しい定義',
+    trainingLabel: 'トレーニング・L&S',
+    trainingExtraExplain: true,
+    resetConfirmText: '高速基礎マスター（L&S小テスト範囲）の進捗を全てリセットしますか？',
+    storageKeys: {
+      wordStatus: 'toeicDojoToshinWordStatusLs_v1',
+      consec: 'toeicDojoToshinConsecLs_v1',
+      setStatus: 'toeicDojoToshinSetStatusLs_v1'
+    }
   }
 };
 
@@ -2624,7 +2668,7 @@ function createToshinState(variant){
     reviewCorrect: 0
   };
 }
-const toshinState = { ja: createToshinState('ja'), en: createToshinState('en') };
+const toshinState = { ja: createToshinState('ja'), en: createToshinState('en'), ls: createToshinState('ls') };
 
 function getToshinWordStatus(variant, key){ return toshinState[variant].wordStatus[key] || 'none'; }
 function setToshinWordStatus(variant, key, status){
@@ -2646,7 +2690,7 @@ function setRawSetStatus(variant, id, status){
 }
 
 function getEffectiveSetStatus(variant, idx){
-  const flat = getToshinFlatSets();
+  const flat = getToshinFlatSets(variant);
   const id = flat[idx].id;
   const stored = getRawSetStatus(variant, id);
   if(stored) return stored;
@@ -2682,8 +2726,8 @@ function renderMasterList(variant){
   const cfg = TOSHIN_VARIANTS[variant];
   const sub = document.getElementById('wordSubApp');
   if(!sub) return;
-  const flat = getToshinFlatSets();
-  const all = getScopedWordItems();
+  const flat = getToshinFlatSets(variant);
+  const all = getToshinPool(variant);
   const masteredCount = all.filter(w=>getToshinWordStatus(variant, w.key)==='mastered').length;
   const clearedSets = flat.filter((s,i)=>getEffectiveSetStatus(variant,i)==='cleared').length;
 
@@ -2694,9 +2738,12 @@ function renderMasterList(variant){
   </div>`;
 
   let idx = 0;
-  getToshinLevels().forEach(lv=>{
+  getToshinLevels(variant).forEach(lv=>{
+    const lvLabel = variant==='ls'
+      ? `${lv.sets[0].label}〜${lv.sets[lv.sets.length-1].label}`
+      : (lv.level===1?'易':lv.level===4?'難':'中');
     html += `<div class="card" style="padding:10px 20px; background:#eef3ee; box-shadow:none;">
-      <div style="font-weight:800; color:var(--moss-dark);">Lv.${lv.level}（${lv.level===1?'易':lv.level===4?'難':'中'}）</div>
+      <div style="font-weight:800; color:var(--moss-dark);">Lv.${lv.level}（${lvLabel}）</div>
     </div>`;
     lv.sets.forEach(s=>{
       const status = getEffectiveSetStatus(variant, idx);
@@ -2705,7 +2752,7 @@ function renderMasterList(variant){
       html += `<div class="card" style="padding:0; overflow:hidden; display:flex; ${clickable?'cursor:pointer;':'opacity:.55;'}" ${clickable?`onclick="enterMasterSet('${variant}', ${idx})"`:''}>
         <div style="background:${status==='cleared'?'var(--ok)':'var(--moss-dark)'}; color:#fff; font-weight:800; padding:14px 16px; text-align:center; min-width:70px;">
           <div style="font-size:.65rem; opacity:.8;">SET</div>
-          <div style="font-size:1.2rem;">${lv.level}-${s.setNum}</div>
+          <div style="font-size:1.2rem;">${setDisplayName({level:lv.level, setNum:s.setNum, label:s.label})}</div>
         </div>
         <div style="flex:1; padding:12px 16px;">
           <div style="font-weight:700; color:var(--moss-dark);">${statusIcon(status)} ${statusLabel(status)}</div>
@@ -2741,9 +2788,9 @@ function buildTrainingPass(variant, setIdx){
   const cfg = TOSHIN_VARIANTS[variant];
   const st = toshinState[variant];
   st.trainingSetIdx = setIdx;
-  const flat = getToshinFlatSets();
+  const flat = getToshinFlatSets(variant);
   const set = flat[setIdx];
-  const all = getScopedWordItems();
+  const all = getToshinPool(variant);
   st.trainingQueue = shuffle(set.words).map(item=>{
     const distractors = shuffle(all.filter(x=>x[cfg.field]!==item[cfg.field])).slice(0,3).map(x=>x[cfg.field]);
     return Object.assign({}, item, {allOptions: shuffle([item[cfg.field], ...distractors]), attempts:0, firstTryDone:false});
@@ -2757,7 +2804,7 @@ function renderMasterTraining(variant){
   const sub = document.getElementById('wordSubApp');
   if(!sub) return;
   if(st.trainingTimerInterval) clearInterval(st.trainingTimerInterval);
-  const flat = getToshinFlatSets();
+  const flat = getToshinFlatSets(variant);
   const set = flat[st.trainingSetIdx];
 
   if(st.trainingQueue.length===0){
@@ -2783,7 +2830,7 @@ function renderMasterTraining(variant){
 
   sub.innerHTML = `<div class="card" style="padding:0; overflow:hidden;">
     <div style="background:var(--moss-dark); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
-      <span style="cursor:pointer;" onclick="toshinState['${variant}'].view='list'; renderWord();">‹ SET ${set.level}-${set.setNum}（${cfg.trainingLabel}）</span>
+      <span style="cursor:pointer;" onclick="toshinState['${variant}'].view='list'; renderWord();">‹ SET ${setDisplayName(set)}（${cfg.trainingLabel}）</span>
       <span id="trainingTimer${cfg.idSuffix}" style="font-weight:800;">⏱ ${st.trainingTimeLeft}</span>
     </div>
     <div style="background:var(--clay); color:#fff; padding:6px 16px; font-size:.8rem;">残り ${st.trainingQueue.length} 問（このパス）</div>
@@ -2925,9 +2972,9 @@ function enterUnitTest(variant, idx){
   const st = toshinState[variant];
   st.view = 'unit';
   st.unitTestSetIdx = idx;
-  const flat = getToshinFlatSets();
+  const flat = getToshinFlatSets(variant);
   const set = flat[idx];
-  const all = getScopedWordItems();
+  const all = getToshinPool(variant);
   st.unitTestQueue = shuffle(set.words).map(item=>{
     const distractors = shuffle(all.filter(x=>x[cfg.field]!==item[cfg.field])).slice(0,3).map(x=>x[cfg.field]);
     return Object.assign({}, item, {allOptions: shuffle([item[cfg.field], ...distractors])});
@@ -2941,7 +2988,7 @@ function renderMasterUnitTest(variant){
   const st = toshinState[variant];
   const sub = document.getElementById('wordSubApp');
   if(!sub) return;
-  const flat = getToshinFlatSets();
+  const flat = getToshinFlatSets(variant);
   const set = flat[st.unitTestSetIdx];
   if(st.unitTestIdx >= st.unitTestQueue.length){
     const accuracy = st.unitTestCorrect / st.unitTestQueue.length;
@@ -2960,7 +3007,7 @@ function renderMasterUnitTest(variant){
   const item = st.unitTestQueue[st.unitTestIdx];
   sub.innerHTML = `<div class="card" style="padding:0; overflow:hidden;">
     <div style="background:var(--clay); color:#fff; padding:12px 16px; display:flex; justify-content:space-between;">
-      <span>📝 確認テスト${cfg.titleSuffix} SET ${set.level}-${set.setNum}</span>
+      <span>📝 確認テスト${cfg.titleSuffix} SET ${setDisplayName(set)}</span>
       <span>${st.unitTestIdx+1} / ${st.unitTestQueue.length}</span>
     </div>
     <div style="padding:20px 18px;">
@@ -3002,7 +3049,7 @@ function enterFinalTest(variant){
   const cfg = TOSHIN_VARIANTS[variant];
   const st = toshinState[variant];
   st.view = 'final';
-  const all = getScopedWordItems();
+  const all = getToshinPool(variant);
   const sampleSize = Math.min(TOSHIN_FINAL_TEST_SIZE, all.length);
   st.finalTestQueue = shuffle(all).slice(0, sampleSize).map(item=>{
     const distractors = shuffle(all.filter(x=>x[cfg.field]!==item[cfg.field])).slice(0,3).map(x=>x[cfg.field]);
@@ -3069,7 +3116,7 @@ function answerFinalTest(variant, chosen, item, btnEl){
     if(b.textContent===item[cfg.field]) b.classList.add('correct');
   });
   const isCorrect = chosen===item[cfg.field];
-  const level = getToshinWordLevelMap()[item.key] || 1;
+  const level = getToshinWordLevelMap(variant)[item.key] || 1;
   st.finalTestLevelStats[level].t++;
   if(isCorrect){ st.finalTestCorrect++; st.finalTestLevelStats[level].c++; }
   else { btnEl.classList.add('wrong'); st.finalTestWrongWords.push(item); }
@@ -3084,7 +3131,7 @@ function enterReviewSet(variant){
   const cfg = TOSHIN_VARIANTS[variant];
   const st = toshinState[variant];
   st.view = 'review';
-  const all = getScopedWordItems();
+  const all = getToshinPool(variant);
   st.reviewQueue = shuffle(st.finalTestWrongWords).map(item=>{
     const distractors = shuffle(all.filter(x=>x[cfg.field]!==item[cfg.field])).slice(0,3).map(x=>x[cfg.field]);
     return Object.assign({}, item, {allOptions: shuffle([item[cfg.field], ...distractors])});
