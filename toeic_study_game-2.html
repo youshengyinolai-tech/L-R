@@ -2273,7 +2273,7 @@ function lifetimeStatsHtml(ns){
   return `<div style="font-size:.75rem; color:#889; margin-bottom:8px;">💾 累計正答率：${s.correct} / ${s.total} 問（${pct}%）※1問ごとに自動保存されます</div>`;
 }
 
-let wordSubMode = 'meaning'; // 'meaning' | 'choose' | 'en2en' | 'en2ja' | 'master' | 'masterEn'
+let wordSubMode = 'meaning'; // 'meaning' | 'choose' | 'en2en' | 'en2ja' | 'master' | 'masterEn' | 'masterLs' | 'masterLsJa'
 
 function renderWord(){
   const lsTotal = getAllWordItems().filter(w=>w.tier===4).length;
@@ -2295,6 +2295,7 @@ function renderWord(){
       <button class="restart" style="background:${wordSubMode==='master'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('master')">🎓 高速基礎マスター（日本語）</button>
       <button class="restart" style="background:${wordSubMode==='masterEn'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('masterEn')">🎓 高速基礎マスター（英英）</button>
       <button class="restart" style="background:${wordSubMode==='masterLs'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('masterLs')">🎯 高速基礎マスター（L&S小テスト範囲）</button>
+      <button class="restart" style="background:${wordSubMode==='masterLsJa'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('masterLsJa')">🎯 高速基礎マスター（L&S小テスト範囲・英日）</button>
     </div>
   </div>
   <div id="wordSubApp"></div>`;
@@ -2302,7 +2303,8 @@ function renderWord(){
   else if(wordSubMode==='choose' || wordSubMode==='en2en' || wordSubMode==='en2ja') renderWordQuiz(wordSubMode);
   else if(wordSubMode==='master') renderToshinDispatch('ja');
   else if(wordSubMode==='masterEn') renderToshinDispatch('en');
-  else renderToshinDispatch('ls');
+  else if(wordSubMode==='masterLs') renderToshinDispatch('ls');
+  else renderToshinDispatch('lsJa');
 }
 function switchWordSubMode(mode){
   wordSubMode = mode;
@@ -2310,7 +2312,8 @@ function switchWordSubMode(mode){
   else if(mode==='choose' || mode==='en2en' || mode==='en2ja'){ if(wordQuizState[mode].queue.length===0) buildWordQuizQueue(mode); }
   else if(mode==='master'){ toshinState.ja.view = 'list'; }
   else if(mode==='masterEn'){ toshinState.en.view = 'list'; }
-  else{ toshinState.ls.view = 'list'; }
+  else if(mode==='masterLs'){ toshinState.ls.view = 'list'; }
+  else{ toshinState.lsJa.view = 'list'; }
   renderWord();
 }
 
@@ -2523,7 +2526,7 @@ const TOSHIN_TIME_LIMIT = 20; // トレーニングの1問あたりの制限時�
 // 'ja'/'en' は263+α語の全体プール（tier順）、'ls' はL&S.pdf小テスト範囲(120語)専用の
 // 独立したプール・SET構成を持つ（週ごとに1SET＝10語、3週ごとに1Lv.）。
 function getToshinPool(variant){
-  return variant==='ls' ? getAllWordItems().filter(w=>w.tier===4) : getAllWordItems();
+  return (variant==='ls'||variant==='lsJa') ? getAllWordItems().filter(w=>w.tier===4) : getAllWordItems();
 }
 const LS_TOSHIN_WEEKS_PER_LEVEL = 3; // 全12回の小テストを3週ずつ4Lv.に分割
 function buildLsToshinLevels(){
@@ -2544,7 +2547,7 @@ let toshinLevelsCacheByVariant = {};
 function getToshinLevels(variant){
   if(toshinLevelsCacheByVariant[variant]) return toshinLevelsCacheByVariant[variant];
   let levels;
-  if(variant==='ls'){
+  if(variant==='ls'||variant==='lsJa'){
     levels = buildLsToshinLevels();
   } else {
     const all = getToshinPool(variant).slice().sort((a,b)=>a.tier-b.tier);
@@ -2637,6 +2640,20 @@ const TOSHIN_VARIANTS = {
       consec: 'toeicDojoToshinConsecLs_v1',
       setStatus: 'toeicDojoToshinSetStatusLs_v1'
     }
+  },
+  lsJa: {
+    field: 'meaning', // L&S.pdf小テスト範囲を「英語→日本語」形式で出題
+    idSuffix: 'LsJa',
+    titleSuffix: '（L&S小テスト範囲・英日）',
+    wrongLabel: '正しい意味',
+    trainingLabel: 'トレーニング・L&S英日',
+    trainingExtraExplain: false,
+    resetConfirmText: '高速基礎マスター（L&S小テスト範囲・英日）の進捗を全てリセットしますか？',
+    storageKeys: {
+      wordStatus: 'toeicDojoToshinWordStatusLsJa_v1',
+      consec: 'toeicDojoToshinConsecLsJa_v1',
+      setStatus: 'toeicDojoToshinSetStatusLsJa_v1'
+    }
   }
 };
 
@@ -2668,7 +2685,7 @@ function createToshinState(variant){
     reviewCorrect: 0
   };
 }
-const toshinState = { ja: createToshinState('ja'), en: createToshinState('en'), ls: createToshinState('ls') };
+const toshinState = { ja: createToshinState('ja'), en: createToshinState('en'), ls: createToshinState('ls'), lsJa: createToshinState('lsJa') };
 
 function getToshinWordStatus(variant, key){ return toshinState[variant].wordStatus[key] || 'none'; }
 function setToshinWordStatus(variant, key, status){
@@ -2739,7 +2756,7 @@ function renderMasterList(variant){
 
   let idx = 0;
   getToshinLevels(variant).forEach(lv=>{
-    const lvLabel = variant==='ls'
+    const lvLabel = (variant==='ls'||variant==='lsJa')
       ? `${lv.sets[0].label}〜${lv.sets[lv.sets.length-1].label}`
       : (lv.level===1?'易':lv.level===4?'難':'中');
     html += `<div class="card" style="padding:10px 20px; background:#eef3ee; box-shadow:none;">
@@ -2913,7 +2930,7 @@ function getEnToWordMap(){
 function toshinExplainHtml(variant, item){
   const extra = wordExtras[item.key];
   let html = '';
-  if(variant==='ja'){
+  if(TOSHIN_VARIANTS[variant].field==='meaning'){
     html += `<div class="explain">💡 覚えるコツ：${(extra && extra.tip) || '単語の成り立ちや似ている単語と比べて覚えましょう。'}</div>`;
   } else {
     const map = getEnToWordMap();
