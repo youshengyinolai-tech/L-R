@@ -476,6 +476,15 @@
          （カード式・4択ともに「この範囲にはまだ単語がありません」という
          案内を表示するようにした）。高速基礎マスターは独立したSET構成の
          ため今回は対象外（将来対応する場合は別途）。
+   v2.27 反意語道場に、今回追加したUnit12 Housing（toeic.pdf）・VOA Unit10
+         （voa.pdf）の本文から、英語が苦手な大学2年生がわからなそうな
+         単語を選んで8ペア追加：interfere⇔assist／sensitive⇔insensitive／
+         stimulating⇔boring／senior⇔junior（以上voa.pdf Unit10）、
+         furnished⇔unfurnished／convenient⇔inconvenient／renovated⇔
+         run-down／include⇔exclude（以上toeic.pdf Unit12）。全てnoteに
+         本文中の実際の引用を明記。sourceSemester()が既にUnit番号を
+         見て判定するため、将来反意語道場に前期/後期フィルターを追加
+         しても自動的に後期側に分類される。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2334,6 +2343,24 @@ const antonymData = [
     note:"sparse=まばらな（voa.pdf Unit6に登場） ⇔ dense=密集した（一般追加語）。"},
   { a:"urban", b:"rural", sourceA:"voa.pdf｜Unit3", sourceB:null, sourced:false,
     note:"urban=都市の（voa.pdf Unit3の urban sprawl に登場） ⇔ rural=田舎の（一般追加語）。"},
+
+  // --- 後期追加分（Unit12 Housing／VOA Unit10）：大学2年生がわからなそうな単語を選定 ---
+  { a:"interfere", b:"assist", sourceA:"voa.pdf｜Unit10", sourceB:null, sourced:true,
+    note:"interfere (with)=妨げる ⇔ assist=手助けする。voa.pdf Unit10で「can interfere with a body's natural sleep rhythms」として登場。"},
+  { a:"sensitive", b:"insensitive", sourceA:"voa.pdf｜Unit10", sourceB:null, sourced:true,
+    note:"sensitive=敏感な、デリケートな ⇔ insensitive=鈍感な。voa.pdf Unit10で「Sensitive issues argued about on social media」として登場。"},
+  { a:"stimulating", b:"boring", sourceA:"voa.pdf｜Unit10", sourceB:null, sourced:true,
+    note:"stimulating=刺激的な ⇔ boring=退屈な。voa.pdf Unit10で「interactive screen time that is stimulating and rewarding」として登場。"},
+  { a:"senior", b:"junior", sourceA:"voa.pdf｜Unit10", sourceB:null, sourced:true,
+    note:"senior=上級の、先任の ⇔ junior=下位の、後任の。voa.pdf Unit10で「the study's senior author」（筆頭著者）として登場。"},
+  { a:"furnished", b:"unfurnished", sourceA:"toeic.pdf｜Unit12", sourceB:null, sourced:true,
+    note:"furnished=家具付きの ⇔ unfurnished=家具なしの。toeic.pdf Unit12で「There's a furnished property」として登場。"},
+  { a:"convenient", b:"inconvenient", sourceA:"toeic.pdf｜Unit12", sourceB:null, sourced:true,
+    note:"convenient=便利な ⇔ inconvenient=不便な。toeic.pdf Unit12の選択肢「A convenient residence」として登場。"},
+  { a:"renovated", b:"run-down", sourceA:"toeic.pdf｜Unit12", sourceB:null, sourced:true,
+    note:"renovated=改装された ⇔ run-down=老朽化した。toeic.pdf Unit12で「the kitchen has been recently renovated」として登場。"},
+  { a:"include", b:"exclude", sourceA:"toeic.pdf｜Unit12", sourceB:null, sourced:true,
+    note:"include=含む ⇔ exclude=除外する。toeic.pdf Unit12で「Does the rent include an internet access fee?」として登場。"},
 ];
 
 const noteHtml = `<div class="note">
