@@ -20,7 +20,7 @@
     --card:#fffdf8;
   }
   *{box-sizing:border-box;}
-  html{ font-size: clamp(15px, 0.9vw + 12px, 18px); }
+  html{ font-size: clamp(15px, 0.9vw + 12px, 18px); scroll-padding-bottom:110px; }
   body{
     margin:0; font-family:"M PLUS Rounded 1c","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
     background:var(--paper); color:var(--ink);
@@ -59,18 +59,35 @@
   .audiolabel{ font-size:.78rem; color:var(--moss-dark); font-weight:700; }
   .audiobox audio{ height:32px; max-width:260px; }
   .audiomiss{ font-size:.72rem; color:var(--bad); }
-  nav{
-    display:flex; justify-content:center; gap:8px; flex-wrap:wrap;
-    padding:14px 10px; background:var(--paper);
-    position:sticky; top:0; z-index:5; border-bottom:1px solid var(--line);
+  /* ---- ナビ：ナルニア国物語学習ツール風の下部固定タブバー ----
+     (icon上・label下のスタック表示。PC幅では中央寄せの浮動ピル型に) */
+  nav#modeNav{
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    display:flex; gap:2px; background:var(--card);
+    border-top:1px solid var(--line);
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 -4px 18px rgba(0,0,0,.08);
+    overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
-  nav button{
-    border:1px solid var(--moss); background:var(--card); color:var(--moss-dark);
-    padding:9px 16px; border-radius:999px; cursor:pointer; font-size:.85rem; font-weight:700;
-    transition:.15s;
+  nav#modeNav::-webkit-scrollbar{ display:none; }
+  nav#modeNav button{
+    flex:1 0 60px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:2px; border:none; background:none; box-shadow:none; border-radius:14px;
+    padding:6px 4px; font-size:.62rem; font-weight:800; color:#889; cursor:pointer;
+    white-space:nowrap; transition:background .15s, color .15s;
   }
-  nav button.active, nav button:hover{ background:var(--moss); color:#fff; }
-  main{max-width:720px; margin:0 auto; padding:20px 16px 60px;}
+  nav#modeNav button .navicon{ font-size:1.3rem; line-height:1; }
+  nav#modeNav button.active{ background:var(--moss); color:#fff; }
+  nav#modeNav button:hover{ background:#eef3ee; color:var(--moss-dark); }
+  nav#modeNav button.active:hover{ background:var(--moss); color:#fff; }
+  @media (min-width:720px){
+    nav#modeNav{
+      left:50%; right:auto; bottom:16px; transform:translateX(-50%);
+      width:min(640px, calc(100% - 32px)); border:1px solid var(--line); border-radius:24px;
+      padding:8px 6px; box-shadow:0 10px 30px rgba(0,0,0,.12);
+    }
+  }
+  main{max-width:720px; margin:0 auto; padding:20px 16px 110px;}
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:14px;
     padding:20px; box-shadow:0 3px 0 var(--line);
@@ -132,11 +149,11 @@
      @media ではなく <html data-uimode="…"> 属性セレクタで切り替える。 */
   html[data-uimode="mobile"] .wordlisttable{ grid-template-columns: 1fr; }
 
-  html[data-uimode="pc"] main{ max-width: 860px; padding:28px 24px 70px; }
+  html[data-uimode="pc"] main{ max-width: 860px; padding:28px 24px 120px; }
   html[data-uimode="pc"] .card{ padding:28px 34px; }
   html[data-uimode="pc"] .choices{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
   html[data-uimode="pc"] .choices.part1choices{ display:flex; }
-  html[data-uimode="pc"] nav button{ padding:10px 20px; font-size:.92rem; }
+  html[data-uimode="pc"] nav#modeNav button{ font-size:.72rem; padding:8px 10px; }
   html[data-uimode="pc"] header h1{ font-size:1.75rem; }
   html[data-uimode="pc"] .word{ font-size:2rem; }
   html[data-uimode="pc"] .qtext{ font-size:1.15rem; }
@@ -223,14 +240,24 @@
   .card{ animation:fadeInUp .35s ease; }
   .choice.correct{ box-shadow:0 3px 0 var(--ok); animation:popScale .35s; }
   .choice.wrong{ box-shadow:0 3px 0 var(--bad); animation:shakeX .4s; }
-  nav button, .restart, .nextbtn, .uimodebtn, .chip{
+  .restart, .nextbtn, .uimodebtn, .chip{
     border-width:2px; box-shadow:0 3px 0 rgba(0,0,0,.16);
     transition:transform .08s, box-shadow .08s, background .15s, opacity .15s;
   }
-  nav button:active, .restart:active, .nextbtn:active, .uimodebtn:active, .chip:active{
+  .restart:active, .nextbtn:active, .uimodebtn:active, .chip:active{
     transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.16);
   }
+  nav#modeNav button:active{ transform:scale(.94); }
   @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+
+  /* ---- 結果リング（SVG）・紙吹雪（ナルニア国物語学習ツール風の終了画面演出） ---- */
+  .ring{ display:block; margin:0 auto 8px; }
+  .ringarc{ animation:ringFill 1s cubic-bezier(.3,.8,.3,1) .1s forwards; }
+  @keyframes ringFill{ to{ stroke-dashoffset:var(--to); } }
+  .ringtxt{ font-family:inherit; }
+  .confetti{ position:relative; height:50px; width:220px; margin:0 auto 6px; pointer-events:none; }
+  .confetti span{ position:absolute; top:-6px; width:8px; height:8px; border-radius:2px; animation:confettiFall 1.1s ease-in forwards; }
+  @keyframes confettiFall{ to{ transform:translateY(70px) rotate(320deg); opacity:0; } }
 </style>
 </head>
 <body>
@@ -249,12 +276,12 @@
 </header>
 
 <nav id="modeNav">
-  <button data-mode="dashboard">📊 学習記録</button>
-  <button data-mode="word" class="active">🗂 単語道場</button>
-  <button data-mode="wordlist">📖 単語帳</button>
-  <button data-mode="toeic">🧩 TOEIC道場</button>
-  <button data-mode="fill">✏️ 穴埋め道場</button>
-  <button data-mode="antonym">↔️ 反意語道場</button>
+  <button data-mode="dashboard" class="active"><span class="navicon">📊</span><span class="navlbl">学習記録</span></button>
+  <button data-mode="word"><span class="navicon">🗂</span><span class="navlbl">単語道場</span></button>
+  <button data-mode="wordlist"><span class="navicon">📖</span><span class="navlbl">単語帳</span></button>
+  <button data-mode="toeic"><span class="navicon">🧩</span><span class="navlbl">TOEIC道場</span></button>
+  <button data-mode="fill"><span class="navicon">✏️</span><span class="navlbl">穴埋め道場</span></button>
+  <button data-mode="antonym"><span class="navicon">↔️</span><span class="navlbl">反意語道場</span></button>
 </nav>
 
 <main id="app"></main>
@@ -401,6 +428,17 @@
          自動更新）。ナビの各タブにアイコンを追加。配色(--moss/
          --clay/--gold等)・DOM構造・クラス名・各モードの挙動は
          変更していない（CSS中心の追加で、ナビの位置も変更なし）。
+   v2.21 ナビをナルニア国物語学習ツール風の下部固定タブバー（アイコン＋
+         ラベルのスタック表示、PC幅では中央寄せの浮動ピル型）に変更。
+         学習記録ダッシュボードを既定の起動画面（ホーム）にした。
+         TOEIC道場・穴埋め道場・反意語道場・高速基礎マスター（確認
+         テスト／最終確認テスト）の終了画面に、正答率を表示するSVG
+         結果リングと、全問正解時の紙吹雪演出を追加。下部固定ナビが
+         ページ末尾のボタンを隠さないよう、main下部の余白を拡大し
+         scroll-padding-bottomを設定。ヘッドレスブラウザで実際の
+         スクロール→タップに近い操作（要素中心座標でのマウスクリック）
+         により、TOEIC道場・反意語道場・穴埋め道場の1ラウンド完走と
+         結果リング／紙吹雪の表示を確認済み。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2272,7 +2310,7 @@ function setupAudioPicker(){
    APP LOGIC
    ============================================================ */
 const app = document.getElementById('app');
-let currentMode = 'word';
+let currentMode = 'dashboard';
 
 document.getElementById('modeNav').addEventListener('click', e=>{
   const btn = e.target.closest('button[data-mode]');
@@ -2331,6 +2369,38 @@ function shuffle(arr){
     [a[i],a[j]]=[a[j],a[i]];
   }
   return a;
+}
+
+/* ---- 終了画面の演出（結果リング・紙吹雪）：ナルニア国物語学習ツール風 ---- */
+function resultRingHtml(correct, total, size){
+  size = size || 120;
+  const pct = total>0 ? Math.round(correct/total*100) : 0;
+  const r = (size-14)/2;
+  const c = Math.round(2*Math.PI*r);
+  const off = Math.round(c*(1-pct/100));
+  const color = pct>=80 ? 'var(--ok)' : (pct<50 ? 'var(--bad)' : 'var(--gold)');
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="10"/>
+    <circle class="ringarc" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="10"
+      stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c}"
+      transform="rotate(-90 ${size/2} ${size/2})" style="--to:${off}px"></circle>
+    <text x="${size/2}" y="${size/2+8}" text-anchor="middle" class="ringtxt" font-size="22" font-weight="800" fill="var(--ink)">${pct}%</text>
+  </svg>`;
+}
+function fireConfetti(container){
+  if(!container) return;
+  const colors = ['#4a6b5a','#b5563c','#c9962c','#3d7a4f','#6b8f7a'];
+  const wrap = document.createElement('div');
+  wrap.className = 'confetti';
+  for(let i=0;i<14;i++){
+    const s = document.createElement('span');
+    s.style.left = (Math.random()*100)+'%';
+    s.style.background = colors[i % colors.length];
+    s.style.animationDelay = (Math.random()*0.3)+'s';
+    s.style.transform = `rotate(${Math.random()*360}deg)`;
+    wrap.appendChild(s);
+  }
+  container.prepend(wrap);
 }
 
 /* ---------------- 単語道場 ---------------- */
@@ -3319,12 +3389,14 @@ function renderMasterUnitTest(variant){
     }
     sub.innerHTML = `<div class="card done">
       <h2>確認テスト結果${cfg.titleSuffix}</h2>
+      ${resultRingHtml(st.unitTestCorrect, st.unitTestQueue.length)}
       <p>正答率：${Math.round(accuracy*100)}%（合格ライン：${TOSHIN_UNIT_TEST_THRESHOLD*100}%）</p>
       ${passed ? `<p style="color:var(--ok);">合格！SETクリアです。次のSETが解放されました。</p>`
         : `<p style="color:var(--bad);">不合格。トレーニングに戻って復習しましょう。</p>
         <button class="restart" onclick="buildTrainingPass('${variant}', ${st.unitTestSetIdx}); toshinState['${variant}'].view='training'; renderWord();">トレーニングに戻る</button>`}
       <button class="restart" onclick="toshinState['${variant}'].view='list'; renderWord();">SET一覧に戻る</button>
     </div>`;
+    if(st.unitTestCorrect===st.unitTestQueue.length) fireConfetti(document.querySelector('#wordSubApp .card.done'));
     return;
   }
   const item = st.unitTestQueue[st.unitTestIdx];
@@ -3399,6 +3471,7 @@ function renderMasterFinalTest(variant){
     }
     sub.innerHTML = `<div class="card done">
       <h2>🏁 最終確認テスト結果${cfg.titleSuffix}</h2>
+      ${resultRingHtml(st.finalTestCorrect, st.finalTestQueue.length)}
       <p style="font-size:1.2rem; font-weight:800; color:var(--moss-dark);">総合正答率：${Math.round(accuracy*100)}%（${st.finalTestCorrect}/${st.finalTestQueue.length}問）</p>
       <div style="text-align:left; margin-top:12px;">
         ${[1,2,3,4].map(L=>{
@@ -3412,6 +3485,7 @@ function renderMasterFinalTest(variant){
       <p style="font-size:.78rem; color:#889; margin-top:10px;">💡 記憶定着のため、しばらくしたらまた最終確認テストを受け直すのがおすすめです。</p>
       <button class="restart" onclick="toshinState['${variant}'].view='list'; renderWord();">SET一覧に戻る</button>
     </div>`;
+    if(st.finalTestWrongWords.length===0) fireConfetti(document.querySelector('#wordSubApp .card.done'));
     return;
   }
   const item = st.finalTestQueue[st.finalTestIdx];
@@ -3577,6 +3651,7 @@ function renderToeic(){
     }
     app.innerHTML = `${noteHtml}${filterHtml}<div class="card done">
       <h2>TOEIC道場 終了！</h2>
+      ${resultRingHtml(toeicScore.correct, toeicScore.total)}
       <p>正答 ${toeicScore.correct} / ${toeicScore.total}</p>
       <p style="color:#556;">📊 全体の習得状況：${stats.known} / ${stats.total} 問（次回はまだの問題から優先的に出ます）</p>
       ${mistakeCount>0 ? `<p style="color:var(--bad);">間違えた問題：${mistakeCount}問</p>
@@ -3584,6 +3659,7 @@ function renderToeic(){
       <button class="restart" onclick="restartToeic()">全問もう一度</button>
       <button class="restart" style="background:var(--bad);" onclick="if(confirm('TOEIC道場の習得記録を全てリセットしますか？')){resetProgress('toeic', toeicAllData.map(toeicKey)); restartToeic();}">習得記録をリセット</button>
     </div>`;
+    if(mistakeCount===0 && toeicScore.total>0) fireConfetti(document.querySelector('#app .card.done'));
     attachToeicFilter();
     return;
   }
@@ -3719,6 +3795,7 @@ function renderFill(){
     }
     app.innerHTML = `${noteHtml}${navHtml}<div class="card done">
       <h2>穴埋め道場（${fillCategoryLabels[fillCategory]}） 終了！</h2>
+      ${resultRingHtml(fillScore.correct, fillScore.total)}
       <p>正答 ${fillScore.correct} / ${fillScore.total}（空所単位）</p>
       <p style="color:#556;">📊 このカテゴリの習得状況：${stats.known} / ${stats.total} 問（次回はまだの問題から優先的に出ます）</p>
       ${mistakeCount>0 ? `<p style="color:var(--bad);">間違いを含む問題：${mistakeCount}問</p>
@@ -3726,6 +3803,7 @@ function renderFill(){
       <button class="restart" onclick="restartFill()">最初からもう一度</button>
       <button class="restart" style="background:var(--bad);" onclick="if(confirm('このカテゴリの習得記録をリセットしますか？')){resetProgress('fill', pool.map(fillKey)); restartFill();}">習得記録をリセット</button>
     </div>`;
+    if(mistakeCount===0 && fillScore.total>0) fireConfetti(document.querySelector('#app .card.done'));
     return;
   }
 
@@ -3913,6 +3991,7 @@ function renderAntonym(){
     }
     app.innerHTML = `${noteHtml}<div class="card done">
       <h2>反意語道場 終了！</h2>
+      ${resultRingHtml(antonymScore.correct, antonymScore.total)}
       <p>正答 ${antonymScore.correct} / ${antonymScore.total}</p>
       <p style="color:#556;">📊 全体の習得状況：${stats.known} / ${stats.total} 問（次回はまだの問題から優先的に出ます）</p>
       ${mistakeCount>0 ? `<p style="color:var(--bad);">間違えた問題：${mistakeCount}問</p>
@@ -3920,6 +3999,7 @@ function renderAntonym(){
       <button class="restart" onclick="restartAntonym()">全問もう一度</button>
       <button class="restart" style="background:var(--bad);" onclick="if(confirm('反意語道場の習得記録を全てリセットしますか？')){resetProgress('antonym', getAllAntonymKeys()); restartAntonym();}">習得記録をリセット</button>
     </div>`;
+    if(mistakeCount===0 && antonymScore.total>0) fireConfetti(document.querySelector('#app .card.done'));
     return;
   }
   const item = antonymQueue[antonymIdx];
