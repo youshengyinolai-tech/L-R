@@ -512,6 +512,11 @@
          ヘッドレスブラウザで、全期間→前期→後期(0語)→全期間と切り替えて
          もSET構成・語数が完全に元へ戻ること、前期SET1の確認テストが
          20問・4択で正しく開始できることを確認済み。
+   v2.30 L&S.pdf小テスト範囲に9/29・10/6の2週分（各10語、計20語）を追加
+         （VOA Unit10 Social Mediaの語彙と重なる内容）。L&S.pdf小テスト
+         範囲は120語→140語に。高速基礎マスター（L&S小テスト範囲）は
+         3週ごとに1レベルの構成のため、新たにLv.5（9/29・10/6の2週、
+         部分レベル）が追加された。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -1025,6 +1030,30 @@ const lsQuizWeeks = [
     ["infection","感染","the act or process of causing or getting a disease"],
     ["fit in","都合をつける","to find time to see somebody or to do something"],
     ["renewable","再生可能な","having an endless supply"]
+  ]},
+  { date:"9/29", words:[
+    ["social media","ソーシャルメディア","websites and computer programs used for online communication"],
+    ["issue","問題・論点","a problem that people are thinking and talking about"],
+    ["study","研究","the activity of examining a subject in detail"],
+    ["postdoctoral","博士研究員の","relating to advanced study that someone does after completing their PhD"],
+    ["affect","影響を与える","to have an influence on someone or something"],
+    ["suffer","(苦痛などを)経験する","to experience physical or mental pain"],
+    ["treat","治療する","to give medical care to an illness or a patient"],
+    ["medicine","医学","the study of the treatment of illness and injuries by doctors and nurses"],
+    ["psychiatry","精神医学","the study concerned with the treatment of mental illness"],
+    ["disorder","障害・疾患","an illness of the mind or body"]
+  ]},
+  { date:"10/6", words:[
+    ["medicine","医学","the study of the treatment of illness and injuries by doctors and nurses"],
+    ["affect","影響を与える","to impact something"],
+    ["treat","治療する","to give medical care to an illness or a patient"],
+    ["suffer","(苦痛などを)経験する","to experience physical or mental pain"],
+    ["psychiatry","精神医学","the study concerned with the treatment of mental illness"],
+    ["lamppost","街灯の柱","a tall pole that supports a light over a street"],
+    ["PhD","博士号","the highest academic degree awarded by a university"],
+    ["evidence","証拠","anything that helps to prove that something is or is not true"],
+    ["disorder","障害・疾患","an illness of the mind or body"],
+    ["exhibition","展示会","a public event at which pictures, products, or other objects of interest are displayed"]
   ]}
 ];
 const lsQuizVocab = lsQuizWeeks.flatMap(w => mkWords(`L&S.pdf｜${w.date} 小テスト`, w.words));
