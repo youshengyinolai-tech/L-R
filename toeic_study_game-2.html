@@ -178,6 +178,29 @@
     background:var(--moss); color:#fff; border:none; padding:10px 20px; border-radius:999px;
     font-weight:700; cursor:pointer; margin-top:10px;
   }
+  /* ---- 📊 学習記録ダッシュボード ---- */
+  .streakbar{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .streakflame{ font-size:1.7rem; opacity:.3; filter:grayscale(1); }
+  .streakflame.lit{ opacity:1; filter:none; }
+  .weekdots{ display:flex; gap:7px; }
+  .weekdot{
+    width:28px; height:28px; border-radius:50%; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; font-size:.68rem; font-weight:800;
+    color:#889; background:#fff;
+  }
+  .weekdot.on{ background:var(--gold); border-color:var(--gold); color:#3a2a05; }
+  .weekdot.today{ box-shadow:0 0 0 2px var(--moss); }
+  .dashcardtitle{ font-weight:800; color:var(--moss-dark); font-size:.95rem; margin-bottom:4px; }
+  .dashbar{ height:9px; border-radius:6px; background:var(--line); overflow:hidden; margin:6px 0 4px; }
+  .dashbar span{ display:block; height:100%; background:var(--moss); }
+  .dashsub{ font-size:.78rem; color:#667; }
+  .dashgroup{ margin-bottom:14px; }
+  .dashgroup:last-child{ margin-bottom:0; }
+  .histrow{
+    display:flex; justify-content:space-between; gap:10px; padding:7px 0;
+    border-top:1px dashed var(--line); font-size:.82rem;
+  }
+  .histrow:first-child{ border-top:none; }
 </style>
 </head>
 <body>
@@ -195,6 +218,7 @@
 </header>
 
 <nav id="modeNav">
+  <button data-mode="dashboard">📊 学習記録</button>
   <button data-mode="word" class="active">単語道場</button>
   <button data-mode="wordlist">単語帳</button>
   <button data-mode="toeic">TOEIC道場</button>
@@ -326,6 +350,17 @@
    v2.18 例文の音声は自動再生しないように変更（単語の発音のみ自動再生を
          維持）。autoplayExampleAudio()の呼び出しを4箇所とも削除。
          🔊ボタンでの手動再生は引き続き可能。263語で確認。
+   v2.19 後期向けに「📊 学習記録」タブを新設。①連続学習日数(streak)と
+         直近7日間のカレンダー、②単語道場・TOEIC道場・穴埋め道場・
+         反意語道場・高速基礎マスター（4variant）の習得状況をまとめて
+         表示するカード、③各道場で1ラウンド終えるごとに記録される
+         テスト結果履歴（直近50件・ダッシュボードには直近10件を表示）、
+         ④学習記録をJSONファイルに書き出し／読み込みできるバックアップ
+         機能を追加。バックアップは端末・ブラウザ間で進捗を引き継ぐ
+         ためのもので、既存のlocalStorage運用（v1.0〜）の制約（別の
+         ブラウザ・端末では進捗が引き継がれない）を補う。既存の
+         masteryState/progressState/lifetimeStats/toshinStateは
+         そのまま再利用し、データ構造・既存モードの挙動は変更していない。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2329,8 +2364,8 @@ function saveMastery(){
   try{ localStorage.setItem(MASTERY_KEY, JSON.stringify(masteryState)); }catch(e){ /* 保存できない環境では無視 */ }
 }
 let masteryState = loadMastery();
-function markWordKnown(key){ masteryState[key] = 'known'; saveMastery(); }
-function markWordUnknown(key){ masteryState[key] = 'unknown'; saveMastery(); }
+function markWordKnown(key){ masteryState[key] = 'known'; saveMastery(); touchStudyDay(); }
+function markWordUnknown(key){ masteryState[key] = 'unknown'; saveMastery(); touchStudyDay(); }
 function isWordKnown(key){ return masteryState[key] === 'known'; }
 
 /* ============================================================
@@ -2390,11 +2425,95 @@ function recordAnswer(ns, correct){
   lifetimeStats[ns].total++;
   if(correct) lifetimeStats[ns].correct++;
   saveLifetimeStats();
+  touchStudyDay();
 }
 function lifetimeStatsHtml(ns){
   const s = lifetimeStats[ns] || {correct:0, total:0};
   const pct = s.total>0 ? Math.round(s.correct/s.total*100) : 0;
   return `<div style="font-size:.75rem; color:#889; margin-bottom:8px;">💾 累計正答率：${s.correct} / ${s.total} 問（${pct}%）※1問ごとに自動保存されます</div>`;
+}
+
+/* ============================================================
+   📊 学習記録ダッシュボード（v2.19）
+   ------------------------------------------------------------
+   studyDays：連続学習日数(streak)算出用に「その日1問でも答えたか」を
+   記録。answerXxx系の関数からtouchStudyDay()を呼んで更新する。
+   testHistory：各道場で1ラウンド終えるたびに記録するテスト結果
+   （直近50件のみ保持。ダッシュボードには直近10件を表示）。
+   ============================================================ */
+function todayKey(d){
+  d = d || new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+const STUDY_DAYS_KEY = 'toeicDojoStudyDays_v1';
+function loadStudyDays(){
+  try{ const raw = localStorage.getItem(STUDY_DAYS_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+}
+function saveStudyDays(){ try{ localStorage.setItem(STUDY_DAYS_KEY, JSON.stringify(studyDays)); }catch(e){ /* 保存できない環境では無視 */ } }
+let studyDays = loadStudyDays();
+function touchStudyDay(){
+  const k = todayKey();
+  if(!studyDays[k]){ studyDays[k] = true; saveStudyDays(); }
+}
+function studyStreakCount(){
+  let n = 0; const d = new Date();
+  // 今日まだ学習していなくても、それだけで連続記録は途切れない（1日の終わりまで判定を待つ）
+  if(!studyDays[todayKey(d)]) d.setDate(d.getDate()-1);
+  while(studyDays[todayKey(d)]){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+
+const TEST_HISTORY_KEY = 'toeicDojoTestHistory_v1';
+const TEST_HISTORY_MAX = 50;
+function loadTestHistory(){
+  try{ const raw = localStorage.getItem(TEST_HISTORY_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ return []; }
+}
+function saveTestHistory(){ try{ localStorage.setItem(TEST_HISTORY_KEY, JSON.stringify(testHistory)); }catch(e){ /* 保存できない環境では無視 */ } }
+let testHistory = loadTestHistory();
+function recordTestHistory(ns, label, correct, total){
+  if(total<=0) return;
+  testHistory.push({ts:Date.now(), ns, label, correct, total});
+  if(testHistory.length > TEST_HISTORY_MAX) testHistory = testHistory.slice(-TEST_HISTORY_MAX);
+  saveTestHistory();
+}
+
+/* ---- 学習記録のバックアップ（JSONファイルに書き出し／読み込み） ----
+   localStorageは端末・ブラウザごとに別なので、別のパソコン・スマホに
+   引っ越すときや、ブラウザのデータを消してしまいそうなときのために、
+   関連する全キーを1つのJSONファイルにまとめて保存／復元できるようにする。 */
+function allProgressBackupKeys(){
+  const keys = [MASTERY_KEY, PROGRESS_KEY, LIFETIME_KEY, WORD_SCOPE_KEY, STUDY_DAYS_KEY, TEST_HISTORY_KEY, UI_MODE_KEY];
+  Object.values(TOSHIN_VARIANTS).forEach(cfg=>{
+    Object.values(cfg.storageKeys).forEach(k=>keys.push(k));
+  });
+  return keys;
+}
+function downloadProgressBackup(){
+  const data = {};
+  allProgressBackupKeys().forEach(k=>{ const v = localStorage.getItem(k); if(v!=null) data[k] = v; });
+  const json = JSON.stringify({app:'toeic-study-game', exportedAt:new Date().toISOString(), data}, null, 1);
+  const blob = new Blob([json], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `toeic-dojo-backup-${todayKey()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function restoreProgressBackupFromFile(file, onDone){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const obj = JSON.parse(reader.result);
+      const data = obj && obj.data && typeof obj.data==='object' ? obj.data : null;
+      if(!data) throw new Error('format');
+      allProgressBackupKeys().forEach(k=>{
+        if(data[k]!=null) localStorage.setItem(k, data[k]); else localStorage.removeItem(k);
+      });
+      onDone(true);
+    }catch(e){ onDone(false); }
+  };
+  reader.onerror = ()=>onDone(false);
+  reader.readAsText(file);
 }
 
 let wordSubMode = 'meaning'; // 'meaning' | 'choose' | 'en2en' | 'en2ja' | 'master' | 'masterEn' | 'masterLs' | 'masterLsJa'
@@ -2541,7 +2660,7 @@ const WORD_QUIZ_MODES = {
     explainHtml: item => `<div class="explain">💡 ${item.en}</div>`
   }
 };
-function createWordQuizState(){ return { queue:[], idx:0, score:{correct:0, total:0}, mistakes:[], reviewMode:false }; }
+function createWordQuizState(){ return { queue:[], idx:0, score:{correct:0, total:0}, mistakes:[], reviewMode:false, logged:false }; }
 const wordQuizState = { choose: createWordQuizState(), en2en: createWordQuizState(), en2ja: createWordQuizState() };
 
 function buildWordQuizQueue(mode){
@@ -2557,6 +2676,7 @@ function buildWordQuizQueue(mode){
   st.score = {correct:0, total:0};
   st.mistakes = [];
   st.reviewMode = false;
+  st.logged = false;
 }
 
 function renderWordQuiz(mode){
@@ -2567,6 +2687,10 @@ function renderWordQuiz(mode){
   if(st.queue.length===0 && !st.reviewMode) buildWordQuizQueue(mode);
   if(st.idx >= st.queue.length){
     const mistakeCount = st.mistakes.length;
+    if(!st.logged && st.score.total>0){
+      recordTestHistory('word', `単語道場（${cfg.doneTitle.replace(' 終了！','')}）`, st.score.correct, st.score.total);
+      st.logged = true;
+    }
     sub.innerHTML = `<div class="card done">
       <h2>${cfg.doneTitle}</h2>
       <p>正答 ${st.score.correct} / ${st.score.total}</p>
@@ -2605,6 +2729,7 @@ function answerWordQuiz(mode, chosen, item, btnEl){
     if(b.textContent===item[cfg.optionField]) b.classList.add('correct');
   });
   st.score.total++;
+  touchStudyDay();
   const fb = document.getElementById('wordQuizFeedback');
   if(chosen===item[cfg.optionField]){
     st.score.correct++;
@@ -2625,6 +2750,7 @@ function reviewWordQuizMistakes(mode){
   st.score = {correct:0, total:0};
   st.mistakes = [];
   st.reviewMode = true;
+  st.logged = false;
   renderWordQuiz(mode);
 }
 
@@ -3076,6 +3202,7 @@ function answerTraining(variant, chosen, item, btnEl){
   const st = toshinState[variant];
   if(st.trainingAnswered) return;
   st.trainingAnswered = true;
+  touchStudyDay();
   if(st.trainingTimerInterval) clearInterval(st.trainingTimerInterval);
   const buttons = document.querySelectorAll(`#trainingChoices${cfg.idSuffix} .choice`);
   buttons.forEach(b=>{
@@ -3122,6 +3249,7 @@ function enterUnitTest(variant, idx){
   });
   st.unitTestIdx = 0;
   st.unitTestCorrect = 0;
+  st.unitTestLogged = false;
   renderWord();
 }
 function renderMasterUnitTest(variant){
@@ -3135,6 +3263,10 @@ function renderMasterUnitTest(variant){
     const accuracy = st.unitTestCorrect / st.unitTestQueue.length;
     const passed = accuracy >= TOSHIN_UNIT_TEST_THRESHOLD;
     setRawSetStatus(variant, set.id, passed ? 'cleared' : 'training');
+    if(!st.unitTestLogged){
+      recordTestHistory('toshin', `高速基礎マスター${cfg.titleSuffix} 確認テスト SET${setDisplayName(set)}`, st.unitTestCorrect, st.unitTestQueue.length);
+      st.unitTestLogged = true;
+    }
     sub.innerHTML = `<div class="card done">
       <h2>確認テスト結果${cfg.titleSuffix}</h2>
       <p>正答率：${Math.round(accuracy*100)}%（合格ライン：${TOSHIN_UNIT_TEST_THRESHOLD*100}%）</p>
@@ -3176,6 +3308,7 @@ function answerUnitTest(variant, chosen, item, btnEl){
     if(b.textContent===item[cfg.field]) b.classList.add('correct');
   });
   const isCorrect = chosen===item[cfg.field];
+  touchStudyDay();
   if(isCorrect) st.unitTestCorrect++;
   else btnEl.classList.add('wrong');
   const fb = document.getElementById(`unitTestFeedback${cfg.idSuffix}`);
@@ -3200,6 +3333,7 @@ function enterFinalTest(variant){
   st.finalTestCorrect = 0;
   st.finalTestWrongWords = [];
   st.finalTestLevelStats = {1:{c:0,t:0},2:{c:0,t:0},3:{c:0,t:0},4:{c:0,t:0}};
+  st.finalTestLogged = false;
   renderWord();
 }
 function renderMasterFinalTest(variant){
@@ -3209,6 +3343,10 @@ function renderMasterFinalTest(variant){
   if(!sub) return;
   if(st.finalTestIdx >= st.finalTestQueue.length){
     const accuracy = st.finalTestCorrect / st.finalTestQueue.length;
+    if(!st.finalTestLogged){
+      recordTestHistory('toshin', `高速基礎マスター${cfg.titleSuffix} 最終確認テスト`, st.finalTestCorrect, st.finalTestQueue.length);
+      st.finalTestLogged = true;
+    }
     sub.innerHTML = `<div class="card done">
       <h2>🏁 最終確認テスト結果${cfg.titleSuffix}</h2>
       <p style="font-size:1.2rem; font-weight:800; color:var(--moss-dark);">総合正答率：${Math.round(accuracy*100)}%（${st.finalTestCorrect}/${st.finalTestQueue.length}問）</p>
@@ -3257,6 +3395,7 @@ function answerFinalTest(variant, chosen, item, btnEl){
     if(b.textContent===item[cfg.field]) b.classList.add('correct');
   });
   const isCorrect = chosen===item[cfg.field];
+  touchStudyDay();
   const level = getToshinWordLevelMap(variant)[item.key] || 1;
   st.finalTestLevelStats[level].t++;
   if(isCorrect){ st.finalTestCorrect++; st.finalTestLevelStats[level].c++; }
@@ -3326,6 +3465,7 @@ function answerReview(variant, chosen, item, btnEl){
     if(b.textContent===item[cfg.field]) b.classList.add('correct');
   });
   const isCorrect = chosen===item[cfg.field];
+  touchStudyDay();
   if(isCorrect) st.reviewCorrect++;
   else btnEl.classList.add('wrong');
   const fb = document.getElementById(`reviewFeedback${cfg.idSuffix}`);
@@ -3346,7 +3486,7 @@ function renderToshinDispatch(variant){
 /* ---------------- TOEIC道場 ---------------- */
 let toeicQueue = [];
 let toeicIdx = 0;
-let toeicScore = {correct:0, total:0};
+let toeicScore = {correct:0, total:0, logged:false};
 let toeicFilter = 'all';
 let toeicMistakes = [];
 let toeicReviewMode = false;
@@ -3363,7 +3503,7 @@ function buildToeicQueue(){
   const filtered = toeicFilter==='all' ? toeicAllData : toeicAllData.filter(q=>q.unit===Number(toeicFilter));
   toeicQueue = prioritizeUnknown('toeic', filtered, toeicKey);
   toeicIdx = 0;
-  toeicScore = {correct:0, total:0};
+  toeicScore = {correct:0, total:0, logged:false};
   toeicMistakes = [];
   toeicReviewMode = false;
 }
@@ -3381,6 +3521,10 @@ function renderToeic(){
   if(toeicIdx >= toeicQueue.length){
     const mistakeCount = toeicMistakes.length;
     const stats = progressStats('toeic', toeicAllData.map(toeicKey));
+    if(!toeicScore.logged && toeicScore.total>0){
+      recordTestHistory('toeic', 'TOEIC道場', toeicScore.correct, toeicScore.total);
+      toeicScore.logged = true;
+    }
     app.innerHTML = `${noteHtml}${filterHtml}<div class="card done">
       <h2>TOEIC道場 終了！</h2>
       <p>正答 ${toeicScore.correct} / ${toeicScore.total}</p>
@@ -3464,7 +3608,7 @@ function restartToeic(){ buildToeicQueue(); renderToeic(); }
 function reviewToeicMistakes(){
   toeicQueue = shuffle(toeicMistakes);
   toeicIdx = 0;
-  toeicScore = {correct:0, total:0};
+  toeicScore = {correct:0, total:0, logged:false};
   toeicMistakes = [];
   toeicReviewMode = true;
   renderToeic();
@@ -3475,7 +3619,7 @@ function reviewToeicMistakes(){
 let fillCategory = 'type';
 let fillQueue = [];
 let fillIdx = 0;
-let fillScore = {correct:0, total:0};
+let fillScore = {correct:0, total:0, logged:false};
 let selectedChip = null; // タップで選択中の単語チップ（DOM要素）
 let fillMistakes = [];
 let fillReviewMode = false;
@@ -3491,7 +3635,7 @@ function getFillPool(category){
 function buildFillQueues(){
   fillQueue = prioritizeUnknown('fill', getFillPool(fillCategory), fillKey);
   fillIdx = 0;
-  fillScore = {correct:0, total:0};
+  fillScore = {correct:0, total:0, logged:false};
   fillMistakes = [];
   fillReviewMode = false;
 }
@@ -3519,6 +3663,10 @@ function renderFill(){
     const pool = getFillPool(fillCategory);
     const mistakeCount = fillMistakes.length;
     const stats = progressStats('fill', pool.map(fillKey));
+    if(!fillScore.logged && fillScore.total>0){
+      recordTestHistory('fill', `穴埋め道場（${fillCategoryLabels[fillCategory]}）`, fillScore.correct, fillScore.total);
+      fillScore.logged = true;
+    }
     app.innerHTML = `${noteHtml}${navHtml}<div class="card done">
       <h2>穴埋め道場（${fillCategoryLabels[fillCategory]}） 終了！</h2>
       <p>正答 ${fillScore.correct} / ${fillScore.total}（空所単位）</p>
@@ -3658,7 +3806,7 @@ function restartFill(){ buildFillQueues(); renderFill(); }
 function reviewFillMistakes(){
   fillQueue = shuffle(fillMistakes);
   fillIdx = 0;
-  fillScore = {correct:0, total:0};
+  fillScore = {correct:0, total:0, logged:false};
   fillMistakes = [];
   fillReviewMode = true;
   renderFill();
@@ -3667,7 +3815,7 @@ function reviewFillMistakes(){
 /* ---------------- 反意語道場 ---------------- */
 let antonymQueue = [];
 let antonymIdx = 0;
-let antonymScore = {correct:0, total:0};
+let antonymScore = {correct:0, total:0, logged:false};
 let antonymMistakes = [];
 let antonymReviewMode = false;
 
@@ -3699,7 +3847,7 @@ function buildAntonymQueue(){
   });
   antonymQueue = prioritizeUnknown('antonym', all, antonymKey);
   antonymIdx = 0;
-  antonymScore = {correct:0, total:0};
+  antonymScore = {correct:0, total:0, logged:false};
   antonymMistakes = [];
   antonymReviewMode = false;
 }
@@ -3709,6 +3857,10 @@ function renderAntonym(){
   if(antonymIdx >= antonymQueue.length){
     const mistakeCount = antonymMistakes.length;
     const stats = progressStats('antonym', getAllAntonymKeys());
+    if(!antonymScore.logged && antonymScore.total>0){
+      recordTestHistory('antonym', '反意語道場', antonymScore.correct, antonymScore.total);
+      antonymScore.logged = true;
+    }
     app.innerHTML = `${noteHtml}<div class="card done">
       <h2>反意語道場 終了！</h2>
       <p>正答 ${antonymScore.correct} / ${antonymScore.total}</p>
@@ -3769,7 +3921,7 @@ function restartAntonym(){ buildAntonymQueue(); renderAntonym(); }
 function reviewAntonymMistakes(){
   antonymQueue = shuffle(antonymMistakes);
   antonymIdx = 0;
-  antonymScore = {correct:0, total:0};
+  antonymScore = {correct:0, total:0, logged:false};
   antonymMistakes = [];
   antonymReviewMode = true;
   renderAntonym();
@@ -3865,8 +4017,138 @@ function renderWordListBody(filterText){
     </div>`).join('');
 }
 
+/* ============================================================
+   📊 学習記録ダッシュボード（renderDashboard）
+   ------------------------------------------------------------
+   既存のmasteryState/progressState/toshinState等をそのまま読み出して
+   集計するだけで、新しい進捗データ構造は増やしていない
+   （studyDays/testHistoryのみ新規。他は既存キーの再利用）。
+   ============================================================ */
+function dashProgressBarHtml(known, total){
+  const pct = total>0 ? Math.round(known/total*100) : 0;
+  return `<div class="dashbar"><span style="width:${pct}%"></span></div>
+    <div class="dashsub">${known} / ${total} 問・語（${pct}%）</div>`;
+}
+function renderDashboard(){
+  const n = studyStreakCount();
+  const todayDone = !!studyDays[todayKey()];
+  const week = [];
+  for(let k=6;k>=0;k--){ const d = new Date(); d.setDate(d.getDate()-k); week.push(d); }
+  const wd = ['日','月','火','水','木','金','土'];
+
+  const wordAll = getAllWordItems();
+  const wordKnown = wordAll.filter(w=>isWordKnown(w.key)).length;
+  const toeicStats = progressStats('toeic', toeicAllData.map(toeicKey));
+  const antonymStats = progressStats('antonym', getAllAntonymKeys());
+  const fillStatsByCat = Object.keys(fillCategoryLabels).map(cat=>({
+    label: fillCategoryLabels[cat],
+    stats: progressStats('fill', getFillPool(cat).map(fillKey))
+  }));
+  const toshinLabel = {ja:'高速基礎マスター（日本語）', en:'高速基礎マスター（英英）', ls:'高速基礎マスター（L&S小テスト範囲）', lsJa:'高速基礎マスター（L&S小テスト範囲・英日）'};
+  const toshinRows = Object.keys(TOSHIN_VARIANTS).map(variant=>{
+    const all = getToshinPool(variant);
+    const mastered = all.filter(w=>getToshinWordStatus(variant, w.key)==='mastered').length;
+    const flat = getToshinFlatSets(variant);
+    const clearedSets = flat.filter((s,i)=>getEffectiveSetStatus(variant,i)==='cleared').length;
+    return {label: toshinLabel[variant]||variant, mastered, total: all.length, clearedSets, setsTotal: flat.length};
+  });
+
+  const recent = testHistory.slice(-10).reverse();
+  const historyHtml = recent.length ? recent.map(h=>{
+    const pct = Math.round(h.correct/h.total*100);
+    const when = new Date(h.ts);
+    const dateStr = when.toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'})+' '+when.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+    const color = pct>=80 ? 'var(--ok)' : (pct<50 ? 'var(--bad)' : 'inherit');
+    return `<div class="histrow"><span>${dateStr}・${h.label}</span><b style="color:${color};">${h.correct}/${h.total}（${pct}%）</b></div>`;
+  }).join('') : `<p style="font-size:.82rem; color:#889;">まだテスト結果の記録がありません。各道場で1ラウンド終えると、ここに記録されます。</p>`;
+
+  app.innerHTML = `
+  <div class="card">
+    <div class="streakbar">
+      <div>
+        <div style="font-weight:800; color:var(--moss-dark); font-size:1.05rem;">
+          <span class="streakflame${todayDone?' lit':''}">🔥</span> ${n}日連続学習中
+        </div>
+        <div class="dashsub" style="margin-top:2px;">${todayDone ? '今日も学習できています！' : (n>0 ? 'どこかの道場を一つ終えると、今日も記録が続きます' : '今日から学習をはじめましょう')}</div>
+      </div>
+      <div class="weekdots">
+        ${week.map(d=>{
+          const on = !!studyDays[todayKey(d)];
+          const isToday = todayKey(d)===todayKey();
+          return `<div class="weekdot${on?' on':''}${isToday?' today':''}" title="${todayKey(d)}">${wd[d.getDay()]}</div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">🗂 単語道場</div>
+    ${dashProgressBarHtml(wordKnown, wordAll.length)}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">🧩 TOEIC道場</div>
+    ${dashProgressBarHtml(toeicStats.known, toeicStats.total)}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">✏️ 穴埋め道場</div>
+    ${fillStatsByCat.map(f=>`<div class="dashgroup">
+      <div class="dashsub">${f.label}</div>
+      ${dashProgressBarHtml(f.stats.known, f.stats.total)}
+    </div>`).join('')}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">↔️ 反意語道場</div>
+    ${dashProgressBarHtml(antonymStats.known, antonymStats.total)}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">🎓 高速基礎マスター</div>
+    ${toshinRows.map(r=>`<div class="dashgroup">
+      <div class="dashsub">${r.label}（クリア済みSET：${r.clearedSets} / ${r.setsTotal}）</div>
+      ${dashProgressBarHtml(r.mastered, r.total)}
+    </div>`).join('')}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">📅 最近のテスト結果（直近10件）</div>
+    ${historyHtml}
+  </div>
+
+  <div class="card">
+    <div class="dashcardtitle">💾 学習記録のバックアップ</div>
+    <p style="font-size:.78rem; color:#776; line-height:1.6; margin-top:4px;">
+      学習記録はこの端末のブラウザだけに保存されています。別のパソコン・スマホに
+      引っ越すときや、ブラウザのデータを消してしまいそうなときは、ファイルに
+      保存しておくと安心です。
+    </p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <button class="restart" id="dashBackupSave">💾 ファイルに保存する</button>
+      <button class="restart" id="dashBackupLoad" style="background:var(--clay);">📂 ファイルから復元する</button>
+      <input type="file" id="dashBackupFile" accept="application/json,.json" style="display:none">
+    </div>
+  </div>`;
+
+  document.getElementById('dashBackupSave').onclick = downloadProgressBackup;
+  const fileInput = document.getElementById('dashBackupFile');
+  document.getElementById('dashBackupLoad').onclick = ()=> fileInput.click();
+  fileInput.onchange = ()=>{
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    if(!confirm('今の学習記録を、選んだファイルの内容に置き換えます。よろしいですか？')){ fileInput.value=''; return; }
+    restoreProgressBackupFromFile(f, ok=>{
+      if(ok){ alert('復元しました。ページを再読み込みします。'); location.reload(); }
+      else alert('復元できませんでした。このツールで保存したバックアップファイル（.json）を選んでください。');
+      fileInput.value = '';
+    });
+  };
+}
+
 function render(){
-  if(currentMode==='word') renderWord();
+  if(currentMode==='dashboard') renderDashboard();
+  else if(currentMode==='word') renderWord();
   else if(currentMode==='wordlist') renderWordList();
   else if(currentMode==='toeic') renderToeic();
   else if(currentMode==='antonym') renderAntonym();
