@@ -454,6 +454,13 @@
          まとめて出題できるフィルターを追加。ZENKI_LAST_UNIT(=11)定数と
          unitSemester()で前期/後期を判定しており、今後Unit13以降を追加
          しても自動的に後期側に分類される。
+   v2.24 後期用にvoa.pdf Unit10（Social Media Is Keeping Young Adults
+         Awake）の穴埋め道場（Fill-in-blank Quiz）を6問追加。頂いた
+         ワークシート写真の空所番号（1〜15）と、頂いた全文スクリプトを
+         突き合わせて空所位置を確認した前半部分のみ収録（"Sensitive
+         issues..."以降の後半は空所位置が不明瞭な写真だったため未収録、
+         写真が揃い次第追加予定）。voaTrack:39（39_CD1_39.mp3）。
+         Vocabulary・Main Idea・長文版（全文通し版）はまだ未対応。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -1888,6 +1895,35 @@ const fillData = [
     text:"Researchers say they still have a lot of work to do before the drones are ready. That includes making sure the drones know how to stay {0} {1} other planes.",
     blanks:["away","from"],
     note:"stay away from=~から離れている" },
+
+  // --- voa.pdf: Unit10 Fill-in-blank Quiz（後期）---
+  // ユーザー提供の教材写真（ワークシートの空所番号1〜15）と、ユーザー提供の
+  // 全文スクリプトを突き合わせて確認済み。本文後半（"Sensitive issues..."以降）
+  // は空所位置が不明瞭な写真だったため、確認でき次第追加予定（現時点では未収録）。
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"The researchers {0} {1} to examine the connection between social media use and sleep among young adults.",
+    blanks:["set","out"],
+    note:"set out to=~に着手する" },
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"For the study, they gave questionnaires to nearly {0} adults, aged 19 {1} {2}.",
+    blanks:["1,800","to","32"],
+    note:"1,800=1,800人／aged 19 to 32=19歳から32歳の" },
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"{0}% of the study's participants reported having serious problems with sleeping. Those people who used social media a lot were three times {1} {2} to have a sleep disorder.",
+    blanks:["30","more","likely"],
+    note:"more likely to=~しやすい" },
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"Levenson said, the number of times a person visits social media is a better predictor of sleep problems than overall {0} {1} on social media.",
+    blanks:["time","spent"],
+    note:"time spent on=~に費やした時間" },
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"Researchers say social media can influence sleep patterns {0} {1} {2} of ways.",
+    blanks:["in","a","number"],
+    note:"in a number of ways=いくつもの方法で" },
+  { source:"voa.pdf｜Unit10 Fill-in-blank Quiz", mode:"type", voaTrack:39,
+    text:"People can lose sleep by {0} {1} too late looking at social media.",
+    blanks:["staying","up"],
+    note:"stay up=夜更かしする" },
 
   // --- voa.pdf: Fill-in-blank Quiz（全文長文版）---
   // 実際の音声は1本の長いトラックなので、細切れではなく全文通しで解く版。
