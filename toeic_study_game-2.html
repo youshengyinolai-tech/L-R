@@ -461,6 +461,11 @@
          issues..."以降の後半は空所位置が不明瞭な写真だったため未収録、
          写真が揃い次第追加予定）。voaTrack:39（39_CD1_39.mp3）。
          Vocabulary・Main Idea・長文版（全文通し版）はまだ未対応。
+   v2.25 穴埋め道場にも「📘前期のみ／📗後期のみ」フィルターを追加（TOEIC
+         道場と同様）。toeic.pdf/l_r.pdfはUnit番号の通し番号（1〜11=前期・
+         12〜=後期）で判定するが、voa.pdfはUnitが前期(1,2,3,6)→後期の順に
+         追加されず「ランダムに進む」ため、VOA_ZENKI_UNITS=[1,2,3,6]の
+         個別指定リストで判定するfillSourceSemester()を追加した。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -3846,10 +3851,27 @@ let fillReviewMode = false;
 
 function fillKey(item){ return item.source+'|'+item.text; }
 
+// 前期/後期の判定：toeic.pdf/l_r.pdfはUnit番号の通し番号（1〜11=前期／12〜=後期、
+// TOEIC道場のunitSemester()と同じ基準）。voa.pdfはUnitが前期(1,2,3,6)→後期の
+// 順に追加されず「ランダムに進む」ため、通し番号ではなく個別指定のリストで判定する。
+const VOA_ZENKI_UNITS = [1,2,3,6];
+function fillSourceUnit(source){ const m = source.match(/Unit(\d+)/); return m ? Number(m[1]) : null; }
+function fillSourceSemester(source){
+  const unit = fillSourceUnit(source);
+  if(unit==null) return null;
+  if(source.startsWith('voa.pdf')) return VOA_ZENKI_UNITS.includes(unit) ? 'zenki' : 'koki';
+  return unit<=ZENKI_LAST_UNIT ? 'zenki' : 'koki';
+}
+
+let fillSemester = 'all'; // 'all' | 'zenki' | 'koki'
+
 function getFillPool(category){
-  if(category==='type') return fillData.filter(f=>f.mode==='type');
-  if(category==='long') return fillData.filter(f=>f.long===true);
-  return fillData.filter(f=>f.mode==='both' && !f.long); // 'both'
+  let pool;
+  if(category==='type') pool = fillData.filter(f=>f.mode==='type');
+  else if(category==='long') pool = fillData.filter(f=>f.long===true);
+  else pool = fillData.filter(f=>f.mode==='both' && !f.long); // 'both'
+  if(fillSemester!=='all') pool = pool.filter(f=>fillSourceSemester(f.source)===fillSemester);
+  return pool;
 }
 
 function buildFillQueues(){
@@ -3866,15 +3888,27 @@ function switchFillCategory(category){
   renderFill();
 }
 
+function switchFillSemester(semester){
+  fillSemester = semester;
+  buildFillQueues();
+  renderFill();
+}
+
 const fillCategoryLabels = { type:'⌨️ タイピング', both:'🗂 ドラッグ&ドロップ', long:'📖 長文編' };
+const fillSemesterLabels = { all:'全期間', zenki:'📘 前期のみ', koki:'📗 後期のみ' };
 
 function renderFill(){
   if(fillQueue.length===0 && !fillReviewMode) buildFillQueues();
 
   const navHtml = `<div class="card" style="padding:14px 18px;">
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       ${Object.entries(fillCategoryLabels).map(([cat,label])=>
         `<button class="restart" style="background:${fillCategory===cat?'var(--clay)':'var(--moss)'}" onclick="switchFillCategory('${cat}')">${label}</button>`
+      ).join('')}
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      ${Object.entries(fillSemesterLabels).map(([sem,label])=>
+        `<button class="restart" style="background:${fillSemester===sem?'var(--clay)':'var(--moss)'}" onclick="switchFillSemester('${sem}')">${label}</button>`
       ).join('')}
     </div>
   </div>`;
