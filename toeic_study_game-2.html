@@ -485,6 +485,16 @@
          本文中の実際の引用を明記。sourceSemester()が既にUnit番号を
          見て判定するため、将来反意語道場に前期/後期フィルターを追加
          しても自動的に後期側に分類される。
+   v2.28 反意語道場にも「全期間／📘前期のみ／📗後期のみ」フィルターを
+         追加。各ペアを出題方向（a→b／b→a）ごとにsourceA/sourceBから
+         学期を判定し、絞り込み結果が0件のときは「この範囲にはまだ
+         反意語がありません」と案内するようにした（単語道場と同じ
+         パターン）。これで単語道場・単語帳・TOEIC道場・穴埋め道場・
+         反意語道場の5機能に前期/後期フィルターが揃った。🎓高速基礎
+         マスターのみ未対応（SET/レベル構成がUnit番号と無関係に
+         重要度順で組まれており、学期で絞るとSET番号と進捗記録の
+         対応が壊れるため、設計変更が必要。現時点ではvocabUnits/
+         extraVocabに後期の単語データもまだ無い）。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -4152,6 +4162,7 @@ let antonymIdx = 0;
 let antonymScore = {correct:0, total:0, logged:false};
 let antonymMistakes = [];
 let antonymReviewMode = false;
+let antonymSemester = 'all'; // 'all' | 'zenki' | 'koki'
 
 function antonymKey(item){ return item.prompt+':'+item.answer; }
 function getAllAntonymKeys(){
@@ -4162,19 +4173,32 @@ function getAllAntonymKeys(){
   });
   return keys;
 }
+function getAllAntonymKeysForSemester(semester){
+  let keys = [];
+  antonymData.forEach(pair=>{
+    const semA = pair.sourceA ? sourceSemester(pair.sourceA) : null;
+    const semB = pair.sourceB ? sourceSemester(pair.sourceB) : semA;
+    if(semester==='all' || semA===semester) keys.push(pair.a+':'+pair.b);
+    if(semester==='all' || semB===semester) keys.push(pair.b+':'+pair.a);
+  });
+  return keys;
+}
 
 function buildAntonymQueue(){
   // 各ペアを両方向（a→bの対義語を選ぶ／b→aの対義語を選ぶ）で出題できるようにする
   let all = [];
   const allWords = antonymData.flatMap(p=>[p.a,p.b]);
   antonymData.forEach(pair=>{
+    const semA = pair.sourceA ? sourceSemester(pair.sourceA) : null;
+    const semB = pair.sourceB ? sourceSemester(pair.sourceB) : semA;
     all.push({prompt:pair.a, answer:pair.b, note:pair.note,
       source: pair.sourceA ? `${pair.sourceA}${pair.sourceB && pair.sourceB!==pair.sourceA ? ' / '+pair.sourceB : ''}` : null,
-      sourced:pair.sourced});
+      sourced:pair.sourced, semester:semA});
     all.push({prompt:pair.b, answer:pair.a, note:pair.note,
       source: pair.sourceB ? `${pair.sourceB}${pair.sourceA && pair.sourceA!==pair.sourceB ? ' / '+pair.sourceA : ''}` : (pair.sourceA||null),
-      sourced:pair.sourced});
+      sourced:pair.sourced, semester:semB});
   });
+  if(antonymSemester!=='all') all = all.filter(item=>item.semester===antonymSemester);
   all.forEach(item=>{
     const distractors = shuffle(allWords.filter(w=>w!==item.answer && w!==item.prompt)).slice(0,3);
     item.allOptions = shuffle([item.answer, ...distractors]);
@@ -4186,8 +4210,28 @@ function buildAntonymQueue(){
   antonymReviewMode = false;
 }
 
+function switchAntonymSemester(semester){
+  antonymSemester = semester;
+  buildAntonymQueue();
+  renderAntonym();
+}
+
 function renderAntonym(){
   if(antonymQueue.length===0 && !antonymReviewMode) buildAntonymQueue();
+  const semesterFilterHtml = `<div class="card" style="padding:14px 18px;">
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      ${Object.entries(semesterLabels).map(([sem,label])=>
+        `<button class="restart" style="background:${antonymSemester===sem?'var(--clay)':'var(--moss)'}" onclick="switchAntonymSemester('${sem}')">${label}（${getAllAntonymKeysForSemester(sem).length}）</button>`
+      ).join('')}
+    </div>
+  </div>`;
+  if(antonymQueue.length===0){
+    app.innerHTML = `${noteHtml}${semesterFilterHtml}<div class="card done">
+      <h2>この範囲にはまだ反意語がありません</h2>
+      <p style="color:#889;">出題範囲の絞り込み（前期のみ／後期のみ）を変えてみてください。</p>
+    </div>`;
+    return;
+  }
   if(antonymIdx >= antonymQueue.length){
     const mistakeCount = antonymMistakes.length;
     const stats = progressStats('antonym', getAllAntonymKeys());
@@ -4195,7 +4239,7 @@ function renderAntonym(){
       recordTestHistory('antonym', '反意語道場', antonymScore.correct, antonymScore.total);
       antonymScore.logged = true;
     }
-    app.innerHTML = `${noteHtml}<div class="card done">
+    app.innerHTML = `${noteHtml}${semesterFilterHtml}<div class="card done">
       <h2>反意語道場 終了！</h2>
       ${resultRingHtml(antonymScore.correct, antonymScore.total)}
       <p>正答 ${antonymScore.correct} / ${antonymScore.total}</p>
@@ -4209,7 +4253,7 @@ function renderAntonym(){
     return;
   }
   const item = antonymQueue[antonymIdx];
-  app.innerHTML = `${noteHtml}
+  app.innerHTML = `${noteHtml}${semesterFilterHtml}
   <div class="card">
     <div class="scorebar">
       <span><span class="badge${item.sourced?'':' verify'}">${item.sourced?'本文出典':'追加語'}</span>${item.source||''}${antonymReviewMode?' <span class="badge verify">復習中</span>':''}</span>
