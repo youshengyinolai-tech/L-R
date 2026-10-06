@@ -517,6 +517,15 @@
          範囲は120語→140語に。高速基礎マスター（L&S小テスト範囲）は
          3週ごとに1レベルの構成のため、新たにLv.5（9/29・10/6の2週、
          部分レベル）が追加された。
+   v2.31 【不具合修正】sourceSemester()がL&S.pdf小テスト（Unit番号を持たず
+         日付のみ）を常にnull（未分類）扱いしていたため、前期/後期で絞り
+         込むと新しく追加したL&S.pdf 9/29・10/6分（20語）が「後期のみ」
+         にも「前期のみ」にも出ず、後期を選ぶと単語道場・単語帳・高速
+         基礎マスター（ja/en）が軒並み0語になっていた。L&S.pdfのsourceは
+         日付（月）から前期/後期を判定するように修正（9〜2月=後期、
+         4〜8月=前期）。これによりL&S.pdf小テスト140語のうち120語が前期・
+         20語が後期として正しく分類され、「後期のみ」フィルターで単語
+         道場・単語帳・高速基礎マスターに20語が表示されるようになった。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2577,15 +2586,24 @@ function fireConfetti(container){
   container.prepend(wrap);
 }
 
-/* ---- 前期/後期の判定（TOEIC道場・穴埋め道場・単語道場・単語帳で共通利用） ----
+/* ---- 前期/後期の判定（TOEIC道場・穴埋め道場・単語道場・単語帳・反意語道場・
+   高速基礎マスターで共通利用） ----
    toeic.pdf/l_r.pdfはUnit番号の通し番号（1〜11=前期・12〜=後期）で判定する。
    voa.pdfは前期のUnitが1,2,3,6と非連番で、後期も届いた順にランダムに追加される
-   ため、通し番号ではなく個別指定リスト(VOA_ZENKI_UNITS)で判定する。Unit番号が
-   無いsource（L&S.pdf小テストや一部の参考記事など）はnull（未分類）を返す。 */
+   ため、通し番号ではなく個別指定リスト(VOA_ZENKI_UNITS)で判定する。L&S.pdf小テスト
+   はUnit番号を持たず日付（"L&S.pdf｜4/21 小テスト"のようなM/D表記）だけを持つため、
+   月（9〜2月=後期・4〜8月=前期）で判定する。それ以外のUnit番号が無いsource
+   （一部の参考記事など）はnull（未分類）を返す。 */
 const ZENKI_LAST_UNIT = 11;
 const VOA_ZENKI_UNITS = [1,2,3,6];
 function sourceUnit(source){ const m = source.match(/Unit(\d+)/); return m ? Number(m[1]) : null; }
 function sourceSemester(source){
+  if(source.startsWith('L&S.pdf')){
+    const m = source.match(/｜(\d+)\/(\d+)/);
+    if(!m) return null;
+    const month = Number(m[1]);
+    return (month>=9 || month<=2) ? 'koki' : 'zenki';
+  }
   const unit = sourceUnit(source);
   if(unit==null) return null;
   if(source.startsWith('voa.pdf')) return VOA_ZENKI_UNITS.includes(unit) ? 'zenki' : 'koki';
