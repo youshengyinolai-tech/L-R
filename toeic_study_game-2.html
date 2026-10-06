@@ -449,6 +449,11 @@
          食い違いを明記した（公式解答集での確認を推奨）。toeicUnitNames
          に12:"Housing"を追加。toeicDl()のDL番号計算式（base=2+10×
          (unit-1)）がUnit12でも一致することを確認済み（DL_112〜121）。
+   v2.23 TOEIC道場の出題範囲セレクトを「前期（Unit1〜11）／後期（Unit12〜）」
+         でグループ分け（<optgroup>）し、「📘前期のみ」「📗後期のみ」で
+         まとめて出題できるフィルターを追加。ZENKI_LAST_UNIT(=11)定数と
+         unitSemester()で前期/後期を判定しており、今後Unit13以降を追加
+         しても自動的に後期側に分類される。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -3658,8 +3663,16 @@ const toeicAllData = toeicData.concat(toeicPart1Data.map(p=>({
   options:p.options, answer:p.answer, note:p.note, image:p.image
 })));
 
+// 前期＝Unit1〜11（voa.pdf/toeic.pdf・l_r.pdfの最初の教材範囲）／後期＝Unit12〜（新しい教材範囲）
+const ZENKI_LAST_UNIT = 11;
+function unitSemester(unit){ return unit<=ZENKI_LAST_UNIT ? 'zenki' : 'koki'; }
+
 function buildToeicQueue(){
-  const filtered = toeicFilter==='all' ? toeicAllData : toeicAllData.filter(q=>q.unit===Number(toeicFilter));
+  let filtered;
+  if(toeicFilter==='all') filtered = toeicAllData;
+  else if(toeicFilter==='zenki') filtered = toeicAllData.filter(q=>unitSemester(q.unit)==='zenki');
+  else if(toeicFilter==='koki') filtered = toeicAllData.filter(q=>unitSemester(q.unit)==='koki');
+  else filtered = toeicAllData.filter(q=>q.unit===Number(toeicFilter));
   toeicQueue = prioritizeUnknown('toeic', filtered, toeicKey);
   toeicIdx = 0;
   toeicScore = {correct:0, total:0, logged:false};
@@ -3669,11 +3682,21 @@ function buildToeicQueue(){
 
 function renderToeic(){
   if(toeicQueue.length===0 && !toeicReviewMode) buildToeicQueue();
+  const zenkiUnits = Object.entries(toeicUnitNames).filter(([n])=>unitSemester(Number(n))==='zenki');
+  const kokiUnits = Object.entries(toeicUnitNames).filter(([n])=>unitSemester(Number(n))==='koki');
+  const unitOptionHtml = ([n,name])=>`<option value="${n}" ${toeicFilter==n?'selected':''}>Unit ${n}：${name}</option>`;
   const filterHtml = `<div class="card" style="padding:14px 20px;">
     <label style="font-size:.85rem; margin-right:8px;">出題範囲：</label>
     <select id="toeicUnitSelect">
       <option value="all">全Unit</option>
-      ${Object.entries(toeicUnitNames).map(([n,name])=>`<option value="${n}" ${toeicFilter==n?'selected':''}>Unit ${n}：${name}</option>`).join('')}
+      <option value="zenki" ${toeicFilter==='zenki'?'selected':''}>📘 前期のみ（Unit1〜${ZENKI_LAST_UNIT}）</option>
+      <option value="koki" ${toeicFilter==='koki'?'selected':''}>📗 後期のみ（Unit${ZENKI_LAST_UNIT+1}〜）</option>
+      <optgroup label="前期（Unit1〜${ZENKI_LAST_UNIT}）">
+        ${zenkiUnits.map(unitOptionHtml).join('')}
+      </optgroup>
+      ${kokiUnits.length ? `<optgroup label="後期（Unit${ZENKI_LAST_UNIT+1}〜）">
+        ${kokiUnits.map(unitOptionHtml).join('')}
+      </optgroup>` : ''}
     </select>
   </div>`;
 
