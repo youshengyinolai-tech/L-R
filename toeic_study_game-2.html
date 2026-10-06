@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>TOEIC 学習道場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#1c2b2d;
@@ -19,7 +22,7 @@
   *{box-sizing:border-box;}
   html{ font-size: clamp(15px, 0.9vw + 12px, 18px); }
   body{
-    margin:0; font-family:"Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    margin:0; font-family:"M PLUS Rounded 1c","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
     background:var(--paper); color:var(--ink);
     background-image:
       radial-gradient(circle at 20% 10%, rgba(74,107,90,0.07), transparent 40%),
@@ -27,9 +30,18 @@
     min-height:100vh;
   }
   header{
-    padding:22px 20px 14px; text-align:center;
+    padding:22px 20px 14px; text-align:center; position:relative;
     border-bottom:3px double var(--line);
   }
+  .headerstreak{
+    position:absolute; top:14px; left:16px;
+    display:flex; align-items:center; gap:4px;
+    padding:5px 12px; border-radius:20px; background:var(--card);
+    border:2px solid var(--line); font-size:.9rem; font-weight:800; color:var(--moss-dark);
+  }
+  .headerstreak .streakflame{ font-size:1rem; opacity:.3; filter:grayscale(1); }
+  .headerstreak .streakflame.lit{ opacity:1; filter:none; }
+  @media (max-width:520px){ .headerstreak{ position:static; display:inline-flex; margin-bottom:8px; } }
   header h1{
     margin:0; font-size:1.5rem; letter-spacing:.04em; color:var(--moss-dark);
     font-weight:800;
@@ -201,6 +213,24 @@
     border-top:1px dashed var(--line); font-size:.82rem;
   }
   .histrow:first-child{ border-top:none; }
+
+  /* ---- UIをナルニア国物語学習ツール風（丸ゴシック・チャンキーボタン・
+     マイクロアニメーション）に寄せる。配色(--moss/--clay/--gold等)や
+     既存のDOM構造・クラス名はそのまま、見た目の質感だけを変更する。 ---- */
+  @keyframes fadeInUp{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes popScale{ 0%{transform:scale(1);} 45%{transform:scale(1.035);} 100%{transform:scale(1);} }
+  @keyframes shakeX{ 10%,90%{transform:translateX(-2px);} 20%,80%{transform:translateX(3px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);} }
+  .card{ animation:fadeInUp .35s ease; }
+  .choice.correct{ box-shadow:0 3px 0 var(--ok); animation:popScale .35s; }
+  .choice.wrong{ box-shadow:0 3px 0 var(--bad); animation:shakeX .4s; }
+  nav button, .restart, .nextbtn, .uimodebtn, .chip{
+    border-width:2px; box-shadow:0 3px 0 rgba(0,0,0,.16);
+    transition:transform .08s, box-shadow .08s, background .15s, opacity .15s;
+  }
+  nav button:active, .restart:active, .nextbtn:active, .uimodebtn:active, .chip:active{
+    transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.16);
+  }
+  @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -208,6 +238,7 @@
 <button type="button" id="uiModeToggle" class="uimodebtn" onclick="cycleUiMode()"></button>
 
 <header>
+  <div class="headerstreak" id="headerStreakChip"></div>
   <h1>TOEIC 学習道場</h1>
   <p>単語道場 ・ TOEIC道場 ・ 穴埋め道場 ・ 反意語道場</p>
   <div class="audiopicker">
@@ -219,11 +250,11 @@
 
 <nav id="modeNav">
   <button data-mode="dashboard">📊 学習記録</button>
-  <button data-mode="word" class="active">単語道場</button>
-  <button data-mode="wordlist">単語帳</button>
-  <button data-mode="toeic">TOEIC道場</button>
-  <button data-mode="fill">穴埋め道場</button>
-  <button data-mode="antonym">反意語道場</button>
+  <button data-mode="word" class="active">🗂 単語道場</button>
+  <button data-mode="wordlist">📖 単語帳</button>
+  <button data-mode="toeic">🧩 TOEIC道場</button>
+  <button data-mode="fill">✏️ 穴埋め道場</button>
+  <button data-mode="antonym">↔️ 反意語道場</button>
 </nav>
 
 <main id="app"></main>
@@ -361,6 +392,15 @@
          ブラウザ・端末では進捗が引き継がれない）を補う。既存の
          masteryState/progressState/lifetimeStats/toshinStateは
          そのまま再利用し、データ構造・既存モードの挙動は変更していない。
+   v2.20 参考サイト（ナルニア国物語 期末試験対策ツール）の雰囲気に
+         UIを寄せた。丸ゴシック体(M PLUS Rounded 1c)を全体に適用、
+         カードのフェードイン・正解/不正解選択肢のポップ/シェイク
+         アニメーション、ボタン類（nav/restart/nextbtn/chip等）に
+         「押せる」チャンキーな影つきスタイルを追加。ヘッダー左上に
+         🔥連続学習日数チップを常時表示（studyStreak更新のたびに
+         自動更新）。ナビの各タブにアイコンを追加。配色(--moss/
+         --clay/--gold等)・DOM構造・クラス名・各モードの挙動は
+         変更していない（CSS中心の追加で、ナビの位置も変更なし）。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2454,6 +2494,7 @@ let studyDays = loadStudyDays();
 function touchStudyDay(){
   const k = todayKey();
   if(!studyDays[k]){ studyDays[k] = true; saveStudyDays(); }
+  renderHeaderStreak();
 }
 function studyStreakCount(){
   let n = 0; const d = new Date();
@@ -2461,6 +2502,15 @@ function studyStreakCount(){
   if(!studyDays[todayKey(d)]) d.setDate(d.getDate()-1);
   while(studyDays[todayKey(d)]){ n++; d.setDate(d.getDate()-1); }
   return n;
+}
+// ヘッダー右上の🔥streakチップ（ナルニア国物語学習ツールのstreakChipに寄せた表示）
+function renderHeaderStreak(){
+  const chip = document.getElementById('headerStreakChip');
+  if(!chip) return;
+  const n = studyStreakCount();
+  const todayDone = !!studyDays[todayKey()];
+  chip.innerHTML = `<span class="streakflame${todayDone?' lit':''}">🔥</span>${n}日`;
+  chip.title = todayDone ? `${n}日連続で学習中` : '今日はまだ学習していません';
 }
 
 const TEST_HISTORY_KEY = 'toeicDojoTestHistory_v1';
@@ -4156,6 +4206,7 @@ function render(){
 }
 setupAudioPicker();
 applyUiMode();
+renderHeaderStreak();
 render();
 </script>
 </body>
