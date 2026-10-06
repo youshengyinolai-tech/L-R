@@ -495,6 +495,23 @@
          重要度順で組まれており、学期で絞るとSET番号と進捗記録の
          対応が壊れるため、設計変更が必要。現時点ではvocabUnits/
          extraVocabに後期の単語データもまだ無い）。
+   v2.29 🎓高速基礎マスター（日本語版・英英版）にも学期フィルターを追加し、
+         全6機能で前期/後期の絞り込みが揃った。設計変更の要点：
+         ①getToshinPool()がja/enのときwordSemesterで絞り込むように
+         （L&S版のls/lsJaは対象外、Unit番号を持たないため常に全件）。
+         ②SET/レベルのキャッシュとSET ID（getSetId）を「variant+学期」
+         単位にし、学期を切り替えても「全期間のSET1」と「前期だけの
+         SET1」が別IDになるようにした（例：L1-S1 と L1-S1-zenki）。
+         これにより、絞り込みを変えても過去のSETクリア記録が別の単語
+         セットに誤って適用される事故を防いでいる。単語ごとの習得状況
+         （wordStatus/consec）は単語key基準のままなので学期を切り替えて
+         も引き継がれる。③学期を切り替えるとSET一覧画面に戻すように
+         した（学習中のSET構成が変わるため）。④絞り込み結果が0語の
+         ときは「この範囲にはまだ単語がありません」と表示（0件なのに
+         「全SETクリア済み」と出ていた表示矛盾も合わせて修正）。
+         ヘッドレスブラウザで、全期間→前期→後期(0語)→全期間と切り替えて
+         もSET構成・語数が完全に元へ戻ること、前期SET1の確認テストが
+         20問・4択で正しく開始できることを確認済み。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2603,7 +2620,8 @@ function getScopedWordItems(){
 }
 function rebuildWordQueues(){
   // スコープ/学期が変わると出題プールが変わるため、対象モード（カード式／4択）のキューを作り直す
-  // （高速基礎マスターは常に独立したプール・SET構成のため、この切り替えの影響を受けない）
+  // （wordScopeは高速基礎マスターに影響しない。wordSemesterはmaster/masterEnのSET構成にも
+  // 影響するため、setWordSemester()側でtoshinState.ja/en.viewを'list'に戻している）
   meaningQueue = [];
   Object.keys(wordQuizState).forEach(m=>{ wordQuizState[m] = createWordQuizState(); });
   renderWord();
@@ -2618,6 +2636,9 @@ function setWordSemester(semester){
   if(wordSemester===semester) return;
   wordSemester = semester;
   try{ localStorage.setItem(WORD_SEMESTER_KEY, semester); }catch(e){ /* 保存できない環境では無視 */ }
+  // master/masterEnはSET構成が学期に依存するため、SET一覧画面に戻す
+  // （単語ごとの習得状況はwordStatus/consecが単語keyベースなので引き継がれる）
+  if(typeof toshinState!=='undefined'){ toshinState.ja.view = 'list'; toshinState.en.view = 'list'; }
   rebuildWordQueues();
 }
 
@@ -2801,6 +2822,9 @@ function renderWord(){
   const lsTotal = getAllWordItems().filter(w=>w.tier===4).length;
   const allTotal = getAllWordItems().length;
   const scopeTogglesApply = ['meaning','choose','en2en','en2ja'].includes(wordSubMode);
+  // 高速基礎マスターの日本語版・英英版（master/masterEn）はgetAllWordItems()全体を使うため
+  // 学期フィルターが意味を持つ。L&S版（masterLs/masterLsJa）はUnit番号を持たず学期の対象外。
+  const semesterTogglesApply = scopeTogglesApply || ['master','masterEn'].includes(wordSubMode);
   const semesterCounts = { all: allTotal,
     zenki: getAllWordItems().filter(w=>sourceSemester(w.source)==='zenki').length,
     koki: getAllWordItems().filter(w=>sourceSemester(w.source)==='koki').length };
@@ -2811,12 +2835,14 @@ function renderWord(){
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <button class="restart" style="background:${wordScope==='all'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('all')">📖 全ての単語（${allTotal}語）</button>
       <button class="restart" style="background:${wordScope==='ls'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('ls')">🎯 L&S小テストの単語だけ（${lsTotal}語）</button>
-    </div>
+    </div>` : ''}
+    ${semesterTogglesApply ? `
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       ${Object.entries(semesterLabels).map(([sem,label])=>
         `<button class="restart" style="background:${wordSemester===sem?'var(--clay)':'var(--moss)'}" onclick="setWordSemester('${sem}')">${label}（${semesterCounts[sem]}語）</button>`
       ).join('')}
-    </div>` : ''}
+    </div>
+    ${['master','masterEn'].includes(wordSubMode) ? `<p style="font-size:.72rem; color:#889; margin:-4px 0 10px;">💡 学期を切り替えるとSET構成が組み直されます（単語ごとの習得状況は引き継がれます）。</p>` : ''}` : ''}
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="restart" style="background:${wordSubMode==='meaning'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('meaning')">🗂 日本語の意味（カード式）</button>
       <button class="restart" style="background:${wordSubMode==='choose'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('choose')">🔤 英語を選ぶ（4択）</button>
@@ -3076,8 +3102,21 @@ const TOSHIN_TIME_LIMIT = 20; // トレーニングの1問あたりの制限時�
 
 // 'ja'/'en' は263+α語の全体プール（tier順）、'ls' はL&S.pdf小テスト範囲(120語)専用の
 // 独立したプール・SET構成を持つ（週ごとに1SET＝10語、3週ごとに1Lv.）。
+// 'ja'/'en'のみ、単語道場と共通のwordSemester（全期間/前期/後期）で絞り込める
+// （L&S.pdf小テストはUnit番号を持たずsourceSemester()がnullを返すため、学期では
+// 絞り込まない＝常に全件対象のまま）。
 function getToshinPool(variant){
-  return (variant==='ls'||variant==='lsJa') ? getAllWordItems().filter(w=>w.tier===4) : getAllWordItems();
+  if(variant==='ls'||variant==='lsJa') return getAllWordItems().filter(w=>w.tier===4);
+  let pool = getAllWordItems();
+  if(wordSemester!=='all') pool = pool.filter(w=>sourceSemester(w.source)===wordSemester);
+  return pool;
+}
+// SET/レベルのキャッシュ・SET IDは、学期で絞り込むとプールの中身（延いてはSET分割）が
+// 変わるため、variant単独ではなく「variant+学期」をキーにする（ls/lsJaは学期の影響を
+// 受けないため従来通りvariant単独）。これにより、全期間で進めたSET1と後期だけで組み直した
+// SET1が別物として扱われ、進捗（setStatus）が誤って混ざることを防ぐ。
+function toshinCacheKey(variant){
+  return (variant==='ls'||variant==='lsJa') ? variant : variant+':'+wordSemester;
 }
 const LS_TOSHIN_WEEKS_PER_LEVEL = 3; // 全12回の小テストを3週ずつ4Lv.に分割
 function buildLsToshinLevels(){
@@ -3096,7 +3135,8 @@ function buildLsToshinLevels(){
 }
 let toshinLevelsCacheByVariant = {};
 function getToshinLevels(variant){
-  if(toshinLevelsCacheByVariant[variant]) return toshinLevelsCacheByVariant[variant];
+  const cacheKey = toshinCacheKey(variant);
+  if(toshinLevelsCacheByVariant[cacheKey]) return toshinLevelsCacheByVariant[cacheKey];
   let levels;
   if(variant==='ls'||variant==='lsJa'){
     levels = buildLsToshinLevels();
@@ -3114,27 +3154,34 @@ function getToshinLevels(variant){
       levels.push({ level:L+1, sets });
     }
   }
-  toshinLevelsCacheByVariant[variant] = levels;
+  toshinLevelsCacheByVariant[cacheKey] = levels;
   return levels;
 }
-function getSetId(level, setNum){ return `L${level}-S${setNum}`; }
+// variantを渡すと、学期で絞り込んでいるja/enのSET IDに -zenki/-koki の接尾辞を付け、
+// 「全期間」のSET1などと衝突しないようにする（ls/lsJa・全期間時は接尾辞なしで従来通り）。
+function getSetId(level, setNum, variant){
+  const suffix = (variant && variant!=='ls' && variant!=='lsJa' && wordSemester!=='all') ? '-'+wordSemester : '';
+  return `L${level}-S${setNum}${suffix}`;
+}
 function setDisplayName(set){ return set.label ? set.label : `${set.level}-${set.setNum}`; }
 let toshinFlatCacheByVariant = {};
 function getToshinFlatSets(variant){
-  if(toshinFlatCacheByVariant[variant]) return toshinFlatCacheByVariant[variant];
+  const cacheKey = toshinCacheKey(variant);
+  if(toshinFlatCacheByVariant[cacheKey]) return toshinFlatCacheByVariant[cacheKey];
   let flat = [];
   getToshinLevels(variant).forEach(lv=>{
-    lv.sets.forEach(s=>flat.push({level:lv.level, setNum:s.setNum, label:s.label, words:s.words, id:getSetId(lv.level,s.setNum)}));
+    lv.sets.forEach(s=>flat.push({level:lv.level, setNum:s.setNum, label:s.label, words:s.words, id:getSetId(lv.level,s.setNum,variant)}));
   });
-  toshinFlatCacheByVariant[variant] = flat;
+  toshinFlatCacheByVariant[cacheKey] = flat;
   return flat;
 }
 let toshinWordLevelMapCacheByVariant = {};
 function getToshinWordLevelMap(variant){
-  if(toshinWordLevelMapCacheByVariant[variant]) return toshinWordLevelMapCacheByVariant[variant];
+  const cacheKey = toshinCacheKey(variant);
+  if(toshinWordLevelMapCacheByVariant[cacheKey]) return toshinWordLevelMapCacheByVariant[cacheKey];
   const map = {};
   getToshinFlatSets(variant).forEach(s=>{ s.words.forEach(w=>{ map[w.key]=s.level; }); });
-  toshinWordLevelMapCacheByVariant[variant] = map;
+  toshinWordLevelMapCacheByVariant[cacheKey] = map;
   return map;
 }
 
@@ -3296,6 +3343,13 @@ function renderMasterList(variant){
   if(!sub) return;
   const flat = getToshinFlatSets(variant);
   const all = getToshinPool(variant);
+  if(all.length===0){
+    sub.innerHTML = `<div class="card done">
+      <h2>この範囲にはまだ単語がありません</h2>
+      <p style="color:#889;">出題範囲の絞り込み（前期のみ／後期のみ等）を変えてみてください。</p>
+    </div>`;
+    return;
+  }
   const masteredCount = all.filter(w=>getToshinWordStatus(variant, w.key)==='mastered').length;
   const clearedSets = flat.filter((s,i)=>getEffectiveSetStatus(variant,i)==='cleared').length;
 
