@@ -466,6 +466,16 @@
          12〜=後期）で判定するが、voa.pdfはUnitが前期(1,2,3,6)→後期の順に
          追加されず「ランダムに進む」ため、VOA_ZENKI_UNITS=[1,2,3,6]の
          個別指定リストで判定するfillSourceSemester()を追加した。
+   v2.26 単語道場（カード式／4択3種）と単語帳にも「全期間／📘前期のみ／
+         📗後期のみ」フィルターを追加。ZENKI_LAST_UNIT・VOA_ZENKI_UNITS・
+         sourceSemester()をfireConfetti()の下に共通定義として1本化し、
+         TOEIC道場のunitSemester()・穴埋め道場（fillSourceSemester→
+         sourceSemesterに統合）・単語道場・単語帳の4箇所から参照する形に
+         リファクタリング。あわせて、絞り込みの結果まだ単語が0件のときに
+         「全て覚えた！」という誤解を招く終了画面が出ていた不具合を修正
+         （カード式・4択ともに「この範囲にはまだ単語がありません」という
+         案内を表示するようにした）。高速基礎マスターは独立したSET構成の
+         ため今回は対象外（将来対応する場合は別途）。
    ------------------------------------------------------------
    ※ 単語道場の「覚えた／まだ」の進捗は、ブラウザのlocalStorageに
      保存されます。GitHub Pages等でホストしてもサーバー側には
@@ -2484,6 +2494,22 @@ function fireConfetti(container){
   container.prepend(wrap);
 }
 
+/* ---- 前期/後期の判定（TOEIC道場・穴埋め道場・単語道場・単語帳で共通利用） ----
+   toeic.pdf/l_r.pdfはUnit番号の通し番号（1〜11=前期・12〜=後期）で判定する。
+   voa.pdfは前期のUnitが1,2,3,6と非連番で、後期も届いた順にランダムに追加される
+   ため、通し番号ではなく個別指定リスト(VOA_ZENKI_UNITS)で判定する。Unit番号が
+   無いsource（L&S.pdf小テストや一部の参考記事など）はnull（未分類）を返す。 */
+const ZENKI_LAST_UNIT = 11;
+const VOA_ZENKI_UNITS = [1,2,3,6];
+function sourceUnit(source){ const m = source.match(/Unit(\d+)/); return m ? Number(m[1]) : null; }
+function sourceSemester(source){
+  const unit = sourceUnit(source);
+  if(unit==null) return null;
+  if(source.startsWith('voa.pdf')) return VOA_ZENKI_UNITS.includes(unit) ? 'zenki' : 'koki';
+  return unit<=ZENKI_LAST_UNIT ? 'zenki' : 'koki';
+}
+const semesterLabels = { all:'全期間', zenki:'📘 前期のみ', koki:'📗 後期のみ' };
+
 /* ---------------- 単語道場 ---------------- */
 // 全単語を一つのリストにまとめる（vocabUnits + extraVocab）。各単語に一意のkeyを持たせる。
 // meaning = 日本語の意味／en = 英語で書かれた意味（definition）。両方を必ず持たせる。
@@ -2528,19 +2554,34 @@ function getAllWordItems(){
 // 「この単語だけ学ぶ」スコープ切り替え：'all'=全単語／'ls'=L&S.pdf小テスト範囲のみ
 const WORD_SCOPE_KEY = 'toeicDojoWordScope_v1';
 let wordScope = (function(){ try{ return localStorage.getItem(WORD_SCOPE_KEY) || 'all'; }catch(e){ return 'all'; } })();
+// 前期/後期の絞り込み：'all'/'zenki'/'koki'（sourceSemester()で判定、L&S.pdf等Unitのないものはnullなので
+// 'all'のときのみ含まれる＝前期専用／後期専用に絞ると小テスト範囲の単語は一旦対象外になる）
+const WORD_SEMESTER_KEY = 'toeicDojoWordSemester_v1';
+let wordSemester = (function(){ try{ return localStorage.getItem(WORD_SEMESTER_KEY) || 'all'; }catch(e){ return 'all'; } })();
 function getScopedWordItems(){
-  const all = getAllWordItems();
-  return wordScope==='ls' ? all.filter(w=>w.tier===4) : all;
+  let all = getAllWordItems();
+  if(wordScope==='ls') all = all.filter(w=>w.tier===4);
+  if(wordSemester!=='all') all = all.filter(w=>sourceSemester(w.source)===wordSemester);
+  return all;
+}
+function rebuildWordQueues(){
+  // スコープ/学期が変わると出題プールが変わるため、対象モード（カード式／4択）のキューを作り直す
+  // （高速基礎マスターは常に独立したプール・SET構成のため、この切り替えの影響を受けない）
+  meaningQueue = [];
+  Object.keys(wordQuizState).forEach(m=>{ wordQuizState[m] = createWordQuizState(); });
+  renderWord();
 }
 function setWordScope(scope){
   if(wordScope===scope) return;
   wordScope = scope;
   try{ localStorage.setItem(WORD_SCOPE_KEY, scope); }catch(e){ /* 保存できない環境では無視 */ }
-  // スコープが変わると出題プールが変わるため、対象モード（カード式／4択）のキューを作り直す
-  // （高速基礎マスターは常に独立したプール・SET構成のため、この切り替えの影響を受けない）
-  meaningQueue = [];
-  Object.keys(wordQuizState).forEach(m=>{ wordQuizState[m] = createWordQuizState(); });
-  renderWord();
+  rebuildWordQueues();
+}
+function setWordSemester(semester){
+  if(wordSemester===semester) return;
+  wordSemester = semester;
+  try{ localStorage.setItem(WORD_SEMESTER_KEY, semester); }catch(e){ /* 保存できない環境では無視 */ }
+  rebuildWordQueues();
 }
 
 // 「覚えた／まだ」の記録はブラウザのlocalStorageに保存（この端末・このブラウザのみ有効）。
@@ -2723,6 +2764,9 @@ function renderWord(){
   const lsTotal = getAllWordItems().filter(w=>w.tier===4).length;
   const allTotal = getAllWordItems().length;
   const scopeTogglesApply = ['meaning','choose','en2en','en2ja'].includes(wordSubMode);
+  const semesterCounts = { all: allTotal,
+    zenki: getAllWordItems().filter(w=>sourceSemester(w.source)==='zenki').length,
+    koki: getAllWordItems().filter(w=>sourceSemester(w.source)==='koki').length };
   app.innerHTML = `${noteHtml}
   <div class="card" style="padding:14px 18px;">
     ${scopeTogglesApply ? `
@@ -2730,6 +2774,11 @@ function renderWord(){
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <button class="restart" style="background:${wordScope==='all'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('all')">📖 全ての単語（${allTotal}語）</button>
       <button class="restart" style="background:${wordScope==='ls'?'var(--clay)':'var(--moss)'}" onclick="setWordScope('ls')">🎯 L&S小テストの単語だけ（${lsTotal}語）</button>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      ${Object.entries(semesterLabels).map(([sem,label])=>
+        `<button class="restart" style="background:${wordSemester===sem?'var(--clay)':'var(--moss)'}" onclick="setWordSemester('${sem}')">${label}（${semesterCounts[sem]}語）</button>`
+      ).join('')}
     </div>` : ''}
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="restart" style="background:${wordSubMode==='meaning'?'var(--clay)':'var(--moss)'}" onclick="switchWordSubMode('meaning')">🗂 日本語の意味（カード式）</button>
@@ -2783,6 +2832,13 @@ function renderWordMeaningCard(){
   const all = getScopedWordItems();
   const knownCount = all.filter(w=>isWordKnown(w.key)).length;
   if(meaningQueue.length===0) buildMeaningQueue();
+  if(all.length===0){
+    sub.innerHTML = `<div class="card done">
+      <h2>この範囲にはまだ単語がありません</h2>
+      <p style="color:#889;">出題範囲の絞り込み（前期のみ／後期のみ等）を変えてみてください。</p>
+    </div>`;
+    return;
+  }
   if(meaningIdx >= meaningQueue.length){
     sub.innerHTML = `<div class="card done">
       <h2>このラウンド終了！</h2>
@@ -2885,6 +2941,13 @@ function renderWordQuiz(mode){
   const st = wordQuizState[mode];
   const sub = document.getElementById('wordSubApp');
   if(!sub) return;
+  if(!st.reviewMode && getScopedWordItems().length===0){
+    sub.innerHTML = `<div class="card done">
+      <h2>この範囲にはまだ単語がありません</h2>
+      <p style="color:#889;">出題範囲の絞り込み（前期のみ／後期のみ等）を変えてみてください。</p>
+    </div>`;
+    return;
+  }
   if(st.queue.length===0 && !st.reviewMode) buildWordQuizQueue(mode);
   if(st.idx >= st.queue.length){
     const mistakeCount = st.mistakes.length;
@@ -3704,8 +3767,7 @@ const toeicAllData = toeicData.concat(toeicPart1Data.map(p=>({
   options:p.options, answer:p.answer, note:p.note, image:p.image
 })));
 
-// 前期＝Unit1〜11（voa.pdf/toeic.pdf・l_r.pdfの最初の教材範囲）／後期＝Unit12〜（新しい教材範囲）
-const ZENKI_LAST_UNIT = 11;
+// ZENKI_LAST_UNIT/VOA_ZENKI_UNITSは共通定義（fireConfetti()の下）を参照。
 function unitSemester(unit){ return unit<=ZENKI_LAST_UNIT ? 'zenki' : 'koki'; }
 
 function buildToeicQueue(){
@@ -3851,17 +3913,7 @@ let fillReviewMode = false;
 
 function fillKey(item){ return item.source+'|'+item.text; }
 
-// 前期/後期の判定：toeic.pdf/l_r.pdfはUnit番号の通し番号（1〜11=前期／12〜=後期、
-// TOEIC道場のunitSemester()と同じ基準）。voa.pdfはUnitが前期(1,2,3,6)→後期の
-// 順に追加されず「ランダムに進む」ため、通し番号ではなく個別指定のリストで判定する。
-const VOA_ZENKI_UNITS = [1,2,3,6];
-function fillSourceUnit(source){ const m = source.match(/Unit(\d+)/); return m ? Number(m[1]) : null; }
-function fillSourceSemester(source){
-  const unit = fillSourceUnit(source);
-  if(unit==null) return null;
-  if(source.startsWith('voa.pdf')) return VOA_ZENKI_UNITS.includes(unit) ? 'zenki' : 'koki';
-  return unit<=ZENKI_LAST_UNIT ? 'zenki' : 'koki';
-}
+// 前期/後期の判定はsourceSemester()（fireConfetti()の下で共通定義）を使う。
 
 let fillSemester = 'all'; // 'all' | 'zenki' | 'koki'
 
@@ -3870,7 +3922,7 @@ function getFillPool(category){
   if(category==='type') pool = fillData.filter(f=>f.mode==='type');
   else if(category==='long') pool = fillData.filter(f=>f.long===true);
   else pool = fillData.filter(f=>f.mode==='both' && !f.long); // 'both'
-  if(fillSemester!=='all') pool = pool.filter(f=>fillSourceSemester(f.source)===fillSemester);
+  if(fillSemester!=='all') pool = pool.filter(f=>sourceSemester(f.source)===fillSemester);
   return pool;
 }
 
@@ -3895,7 +3947,6 @@ function switchFillSemester(semester){
 }
 
 const fillCategoryLabels = { type:'⌨️ タイピング', both:'🗂 ドラッグ&ドロップ', long:'📖 長文編' };
-const fillSemesterLabels = { all:'全期間', zenki:'📘 前期のみ', koki:'📗 後期のみ' };
 
 function renderFill(){
   if(fillQueue.length===0 && !fillReviewMode) buildFillQueues();
@@ -3907,7 +3958,7 @@ function renderFill(){
       ).join('')}
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      ${Object.entries(fillSemesterLabels).map(([sem,label])=>
+      ${Object.entries(semesterLabels).map(([sem,label])=>
         `<button class="restart" style="background:${fillSemester===sem?'var(--clay)':'var(--moss)'}" onclick="switchFillSemester('${sem}')">${label}</button>`
       ).join('')}
     </div>
@@ -4191,6 +4242,7 @@ let wordListAll = null;
 let wordListMode = 'both'; // 'jp' | 'en' | 'both'
 let wordListFilterText = '';
 let wordListTierFilter = 'all'; // 'all' | 1 | 2 | 3
+let wordListSemesterFilter = 'all'; // 'all' | 'zenki' | 'koki'
 function buildWordListAll(){
   let list = [];
   vocabUnits.forEach(u=>{
@@ -4225,6 +4277,12 @@ function renderWordList(){
       <button class="restart" id="wlTier3" style="background:${wordListTierFilter===3?'var(--clay)':'var(--moss)'}">⚪ 参考（${tierCounts[3]}）</button>
       <button class="restart" id="wlTier4" style="background:${wordListTierFilter===4?'var(--clay)':'var(--moss)'}">🟢 小テスト範囲（${tierCounts[4]}）</button>
     </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      ${Object.entries(semesterLabels).map(([sem,label])=>{
+        const n = sem==='all' ? wordListAll.length : wordListAll.filter(w=>sourceSemester(w.source)===sem).length;
+        return `<button class="restart" id="wlSem${sem}" style="background:${wordListSemesterFilter===sem?'var(--clay)':'var(--moss)'}">${label}（${n}）</button>`;
+      }).join('')}
+    </div>
     <input id="wordListSearch" type="text" placeholder="単語・意味・出典で検索…" value="${wordListFilterText.replace(/"/g,'&quot;')}" style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:.9rem; box-sizing:border-box;">
   </div>
   <div id="wordListBody"></div>`;
@@ -4236,6 +4294,9 @@ function renderWordList(){
   document.getElementById('wlTier2').onclick = ()=>{ wordListTierFilter=2; renderWordList(); };
   document.getElementById('wlTier3').onclick = ()=>{ wordListTierFilter=3; renderWordList(); };
   document.getElementById('wlTier4').onclick = ()=>{ wordListTierFilter=4; renderWordList(); };
+  Object.keys(semesterLabels).forEach(sem=>{
+    document.getElementById('wlSem'+sem).onclick = ()=>{ wordListSemesterFilter=sem; renderWordList(); };
+  });
   const search = document.getElementById('wordListSearch');
   search.oninput = ()=>{ wordListFilterText = search.value.trim().toLowerCase(); renderWordListBody(wordListFilterText); };
   renderWordListBody(wordListFilterText);
@@ -4246,6 +4307,7 @@ function renderWordListBody(filterText){
     w.word.toLowerCase().includes(filterText) || w.meaning.toLowerCase().includes(filterText) ||
     (w.en||'').toLowerCase().includes(filterText) || w.source.toLowerCase().includes(filterText));
   if(wordListTierFilter!=='all') filtered = filtered.filter(w=>w.tier===wordListTierFilter);
+  if(wordListSemesterFilter!=='all') filtered = filtered.filter(w=>sourceSemester(w.source)===wordListSemesterFilter);
   // 出典ごとにグループ化
   const groups = {};
   filtered.forEach(w=>{ (groups[w.source] ??= []).push(w); });
